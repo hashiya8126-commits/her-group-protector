@@ -213,22 +213,29 @@ async def get_status_api(request):
     minutes, _ = divmod(remainder, 60)
     uptime_str = f"{hours}時間 {minutes}分"
 
-    ping = round(bot.latency * 1000) if bot.latency else 0
+    ping_ms = round(bot.latency * 1000) if bot.latency else 0
 
     try:
         cpu_usage = psutil.cpu_percent(interval=None)
     except Exception:
-        cpu_usage = 0
+        cpu_usage = 0.0
+
+    try:
+        memory_usage = psutil.virtual_memory().percent
+    except Exception:
+        memory_usage = 0.0
 
     status_data = {
         "online": bot.is_ready(),
         "bot_name": bot.user.name if bot.user else "Unknown",
         "guilds_count": len(bot.guilds),
         "uptime": uptime_str,
-        "ping": f"{ping} ms",
+        "ping": f"{ping_ms} ms",
+        "ping_raw": ping_ms,
         "meigen_count": f"{len(meigen_list)} 件",
         "ng_count": f"{ng_count} 件",
-        "cpu": cpu_usage
+        "cpu": cpu_usage,
+        "memory": memory_usage
     }
     return web.json_response(status_data, headers={"Access-Control-Allow-Origin": "*"})
 
