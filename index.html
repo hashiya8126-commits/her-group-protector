@@ -8,133 +8,168 @@
         :root {
             --bg-color: #0f111a;
             --card-bg: #1a1d2d;
+            --card-hover: #23273e;
             --accent-color: #5865f2;
-            --text-color: #ffffff;
+            --text-main: #ffffff;
             --text-sub: #949ba4;
-            --online-color: #23a55a;
-            --offline-color: #f23f43;
-            --border-color: #2b2d42;
+            --border-color: #2b2f48;
         }
 
         body {
-            font-family: 'Helvetica Neue', Arial, sans-serif;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
             background-color: var(--bg-color);
-            color: var(--text-color);
+            color: var(--text-main);
             margin: 0;
             padding: 20px;
             display: flex;
             justify-content: center;
-            align-items: center;
-            min-height: 100vh;
-            box-sizing: border-box;
         }
 
         .container {
             width: 100%;
             max-width: 480px;
-            background-color: var(--card-bg);
-            border-radius: 16px;
-            padding: 24px;
-            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
-            border: 1px solid var(--border-color);
         }
 
         .header {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            font-size: 1.25rem;
-            font-weight: bold;
-            color: #7289da;
-            margin-bottom: 24px;
-        }
-
-        .section-box {
-            background-color: rgba(0, 0, 0, 0.2);
-            border: 1px solid var(--border-color);
-            border-radius: 12px;
-            padding: 16px;
+            text-align: center;
             margin-bottom: 20px;
         }
 
-        .section-title {
-            font-size: 0.95rem;
-            font-weight: bold;
-            margin-bottom: 12px;
+        .header h1 {
+            font-size: 1.2rem;
             display: flex;
             align-items: center;
+            justify-content: center;
             gap: 8px;
         }
 
-        select {
+        .card {
+            background-color: var(--card-bg);
+            border-radius: 12px;
+            padding: 16px;
+            margin-bottom: 20px;
+            border: 1px solid var(--border-color);
+        }
+
+        .section-title {
+            font-size: 0.9rem;
+            color: var(--text-sub);
+            margin-bottom: 12px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        select, button, input, textarea {
             width: 100%;
             padding: 12px;
             border-radius: 8px;
-            background-color: #111214;
-            color: var(--text-color);
             border: 1px solid var(--border-color);
+            background-color: #121420;
+            color: var(--text-main);
             font-size: 0.95rem;
-            outline: none;
             box-sizing: border-box;
-            margin-bottom: 12px;
         }
 
-        .status-badge {
-            padding: 10px 14px;
-            border-radius: 8px;
-            font-size: 0.85rem;
-            font-weight: bold;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            transition: all 0.3s ease;
-        }
-
-        .status-badge.online {
-            background-color: rgba(35, 165, 90, 0.15);
-            color: #57f287;
-            border: 1px solid rgba(35, 165, 90, 0.4);
-        }
-
-        .status-badge.offline {
-            background-color: rgba(242, 63, 67, 0.15);
-            color: #ed4245;
-            border: 1px solid rgba(242, 63, 67, 0.4);
-        }
-
-        .menu-card {
-            background-color: rgba(0, 0, 0, 0.2);
-            border: 1px solid var(--border-color);
+        .clickable-card {
+            background-color: var(--card-bg);
             border-radius: 12px;
             padding: 16px;
+            border: 1px solid var(--border-color);
+            cursor: pointer;
+            transition: background-color 0.2s;
             display: flex;
             justify-content: space-between;
             align-items: center;
-            cursor: pointer;
-            transition: background-color 0.2s ease;
         }
 
-        .menu-card:hover {
-            background-color: rgba(255, 255, 255, 0.05);
+        .clickable-card:active {
+            background-color: var(--card-hover);
         }
 
-        .menu-info h3 {
+        .card-info h3 {
             margin: 0 0 6px 0;
             font-size: 1rem;
-            display: flex;
-            align-items: center;
-            gap: 8px;
         }
 
-        .menu-info p {
+        .card-info p {
             margin: 0;
             font-size: 0.8rem;
             color: var(--text-sub);
         }
 
         .arrow {
-            color: #7289da;
             font-size: 1.2rem;
+            color: var(--accent-color);
+        }
+
+        /* --- モーダル (設定ポップアップ) --- */
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.7);
+            z-index: 1000;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+            box-sizing: border-box;
+        }
+
+        .modal {
+            background-color: var(--card-bg);
+            border-radius: 16px;
+            padding: 20px;
+            width: 100%;
+            max-width: 440px;
+            max-height: 85vh;
+            overflow-y: auto;
+            border: 1px solid var(--border-color);
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 16px;
+        }
+
+        .modal-header h2 {
+            margin: 0;
+            font-size: 1.1rem;
+        }
+
+        .close-btn {
+            background: none;
+            border: none;
+            color: var(--text-sub);
+            font-size: 1.5rem;
+            cursor: pointer;
+            width: auto;
+            padding: 0;
+        }
+
+        .form-group {
+            margin-bottom: 16px;
+        }
+
+        .form-group label {
+            display: block;
+            font-size: 0.85rem;
+            color: var(--text-sub);
+            margin-bottom: 6px;
+        }
+
+        .save-btn {
+            background-color: var(--accent-color);
+            color: white;
+            font-weight: bold;
+            border: none;
+            cursor: pointer;
+            margin-top: 10px;
         }
     </style>
 </head>
@@ -142,80 +177,91 @@
 
 <div class="container">
     <div class="header">
-        🛡️ HER Group Protector
+        <h1>🛡️ HER Group Protector</h1>
     </div>
 
-    <div class="section-box">
-        <div class="section-title">
-            🌐 管理するサーバーを選択
-        </div>
-        
-        <select id="guild-select">
-            <option value="">読み込み中...</option>
+    <div class="card">
+        <div class="section-title">🌐 管理するサーバーを選択</div>
+        <select id="server-select">
+            <!-- SERVER_OPTIONS -->
         </select>
-
-        <div id="status-badge" class="status-badge offline">
-            🔴 接続確認中...
+        <div style="margin-top: 10px; font-size: 0.85rem; color: #43b581;">
+            🟢 Botオンライン (HER Group Protector BOT)
         </div>
     </div>
 
-    <div class="section-title" style="margin-top: 24px; margin-bottom: 12px; color: var(--text-sub); font-size: 0.85rem;">
-        ⚙️ 設定メニュー
-    </div>
+    <div class="section-title">⚙️ 設定メニュー</div>
 
-    <div class="menu-card">
-        <div class="menu-info">
-            <h3>📬 ようこそメッセージ & ログ設定</h3>
-            <p>新規参加者の歓迎カードや各種ログチャンネルの設定</p>
+    <!-- タップでモーダルが開くエリア -->
+    <div class="clickable-card" id="open-welcome-modal">
+        <div class="card-info">
+            <h3>📫 ようこそメッセージ & ログ設定</h3>
+            <p>新規参加者の歓迎メッセージや各種ログチャンネルの設定</p>
         </div>
         <div class="arrow">➔</div>
     </div>
 </div>
 
+<!-- ⚙️ 設定用モーダル（ポップアップ画面） -->
+<div class="modal-overlay" id="welcome-modal">
+    <div class="modal">
+        <div class="modal-header">
+            <h2>📫 ようこそ＆ログ設定</h2>
+            <button class="close-btn" id="close-modal">&times;</button>
+        </div>
+
+        <div class="form-group">
+            <label>💬 ようこそメッセージ本文</label>
+            <textarea id="welcome-msg" rows="3" placeholder="ようこそ {user} さん！"></textarea>
+        </div>
+
+        <div class="form-group">
+            <label>📜 編集・削除ログチャンネル</label>
+            <input type="text" placeholder="チャンネルIDを入力">
+        </div>
+
+        <div class="form-group">
+            <label>🚨 NGワード警報チャンネル</label>
+            <input type="text" placeholder="チャンネルIDを入力">
+        </div>
+
+        <div class="form-group">
+            <label>🤪 迷言通知チャンネル</label>
+            <input type="text" placeholder="チャンネルIDを入力">
+        </div>
+
+        <button class="save-btn" id="save-settings">設定を保存する</button>
+    </div>
+</div>
+
 <script>
-    // Botのステータスとサーバー一覧をAPIから取得して表示を更新する
-    async function updateDashboard() {
-        const statusBadge = document.getElementById('status-badge');
-        const guildSelect = document.getElementById('guild-select');
+    const modal = document.getElementById('welcome-modal');
+    const openBtn = document.getElementById('open-welcome-modal');
+    const closeBtn = document.getElementById('close-modal');
+    const saveBtn = document.getElementById('save-settings');
 
-        try {
-            // ステータスAPIを取得
-            const statusRes = await fetch('/api/status');
-            if (!statusRes.ok) throw new Error('API Response Error');
-            const statusData = await statusRes.json();
+    // モーダルを開く
+    openBtn.addEventListener('click', () => {
+        modal.style.display = 'flex';
+    });
 
-            if (statusData.online) {
-                // オンライン時
-                statusBadge.className = 'status-badge online';
-                statusBadge.innerHTML = `🟢 Botオンライン (${statusData.bot_name})`;
+    // モーダルを閉じる
+    closeBtn.addEventListener('click', () => {
+        modal.style.display = 'none';
+    });
 
-                // サーバー一覧APIを取得
-                const guildsRes = await fetch('/api/guilds');
-                const guildsData = await guildsRes.json();
-
-                if (guildsData.length > 0) {
-                    guildSelect.innerHTML = guildsData.map(g => 
-                        `<option value="${g.id}">🟢 ${g.name}</option>`
-                    ).join('');
-                } else {
-                    guildSelect.innerHTML = '<option value="">参加中のサーバーがありません</option>';
-                }
-            } else {
-                throw new Error('Bot is not ready');
-            }
-        } catch (error) {
-            // オフライン時またはエラー発生時
-            statusBadge.className = 'status-badge offline';
-            statusBadge.innerHTML = '🔴 Botオフライン (python bot.py を実行してください)';
-            guildSelect.innerHTML = '<option value="">Botが起動していません</option>';
+    // 背景タップで閉じる
+    window.addEventListener('click', (e) => {
+        if (e.target === modal) {
+            modal.style.display = 'none';
         }
-    }
+    });
 
-    // ページ読み込み時に実行 ＆ 10秒ごとに自動更新
-    window.onload = () => {
-        updateDashboard();
-        setInterval(updateDashboard, 10000);
-    };
+    // 保存ボタン
+    saveBtn.addEventListener('click', () => {
+        alert('設定を保存しました！');
+        modal.style.display = 'none';
+    });
 </script>
 
 </body>
