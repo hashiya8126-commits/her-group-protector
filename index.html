@@ -4,9 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>HER Group Protector</title>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
-        /* デフォルトテーマ（ネイビー） */
         :root, [data-theme="navy"] {
             --bg-color: #0f111a;
             --card-bg: #1a1d2d;
@@ -18,7 +16,6 @@
             --accent-green: #2ecc71;
         }
 
-        /* 真っ黒テーマ */
         [data-theme="black"] {
             --bg-color: #000000;
             --card-bg: #121212;
@@ -30,7 +27,6 @@
             --accent-green: #2ecc71;
         }
 
-        /* 真っ白テーマ */
         [data-theme="white"] {
             --bg-color: #f5f6f8;
             --card-bg: #ffffff;
@@ -55,13 +51,13 @@
 
         .container {
             width: 100%;
-            max-width: 480px;
+            max-width: 520px;
         }
 
         .header {
             text-align: center;
             margin-bottom: 20px;
-            font-size: 1.2rem;
+            font-size: 1.3rem;
             font-weight: bold;
         }
 
@@ -116,6 +112,7 @@
             display: flex;
             align-items: center;
             gap: 6px;
+            font-weight: bold;
         }
 
         select, button, input, textarea {
@@ -136,42 +133,10 @@
             color: var(--accent-green);
         }
 
-        .menu-item {
-            background: var(--card-inner);
-            padding: 14px;
-            border-radius: 10px;
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            color: var(--text-main);
-            cursor: pointer;
-            border: 1px solid var(--border-color);
-        }
-
-        .menu-item .desc {
-            font-size: 0.75rem;
-            color: var(--text-sub);
-            margin-top: 4px;
-        }
-
         .grid-2 {
             display: grid;
             grid-template-columns: 1fr 1fr;
             gap: 10px;
-            margin-bottom: 10px;
-        }
-
-        .stat-box {
-            background: var(--card-inner);
-            padding: 10px;
-            border-radius: 8px;
-            border: 1px solid var(--border-color);
-        }
-
-        .stat-value {
-            font-size: 1.1rem;
-            font-weight: bold;
-            margin-top: 4px;
         }
 
         .form-group {
@@ -185,17 +150,6 @@
             margin-bottom: 6px;
         }
 
-        .time-range {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            margin-top: 8px;
-        }
-
-        .time-range input {
-            width: 50%;
-        }
-
         .save-btn {
             background-color: var(--primary);
             color: white;
@@ -205,7 +159,6 @@
             margin-top: 10px;
         }
 
-        /* 個人設定の見た目 */
         .setting-row {
             display: flex;
             justify-content: space-between;
@@ -213,13 +166,28 @@
             margin-bottom: 12px;
         }
 
-        .setting-row:last-child {
-            margin-bottom: 0;
-        }
-
         .setting-label {
             font-size: 0.85rem;
             color: var(--text-main);
+        }
+
+        .status-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+        }
+
+        .status-item {
+            background: var(--card-inner);
+            padding: 12px;
+            border-radius: 8px;
+            border: 1px solid var(--border-color);
+        }
+
+        .status-value {
+            font-size: 1.2rem;
+            font-weight: bold;
+            margin-top: 4px;
         }
     </style>
 </head>
@@ -236,125 +204,154 @@
         <button class="tab-btn" onclick="switchTab('logs')">📜 実行履歴</button>
     </div>
 
-    <!-- 👤 個人設定 (テーマ & OS連動) -->
+    <!-- 個人設定 -->
     <div class="card">
         <div class="card-title">👤 個人設定 (表示スタイル)</div>
         <div class="setting-row">
             <span class="setting-label">🎨 カラーテーマ</span>
-            <select id="user-theme-select" style="width: auto; padding: 6px 12px;">
+            <select id="user-theme-select" style="width: auto; padding: 6px 12px;" onchange="changeTheme(this.value)">
                 <option value="navy">標準 (ダークネイビー)</option>
                 <option value="black">真っ黒 (ピュアブラック)</option>
                 <option value="white">真っ白 (ライトモード)</option>
             </select>
         </div>
-        <div class="setting-row">
-            <span class="setting-label">💻 システム（OS）の設定に合わせる</span>
-            <input type="checkbox" id="system-theme-toggle" style="width: auto; cursor: pointer;">
-        </div>
     </div>
 
-    <!-- 共通：サーバー選択 -->
+    <!-- サーバー選択 -->
     <div class="card">
         <div class="card-title">🌐 管理するサーバーを選択</div>
-        <select id="server-select">
+        <select id="server-select" onchange="loadGuildChannels()">
             <!-- SERVER_OPTIONS -->
         </select>
-        <div class="status-badge">
+        <div class="status-badge" id="bot-status-text">
             🟢 Botオンライン (HER Group Protector BOT)
         </div>
     </div>
 
     <!-- 🏠 ホーム タブ -->
     <div id="tab-home" class="page-section active">
-        <!-- ⚙️ 設定メニュー -->
         <div class="card">
-            <div class="card-title">⚙️ 設定メニュー</div>
-            <div class="menu-item" onclick="switchTab('settings')">
-                <div>
-                    <div style="font-weight: bold; font-size: 0.95rem;">📫 ようこそメッセージ & ログ設定</div>
-                    <div class="desc">新規参加者の歓迎メッセージや各種ログチャンネルの設定</div>
+            <div class="card-title">📊 システムステータス</div>
+            <div class="status-grid">
+                <div class="status-item">
+                    <div style="font-size:0.75rem; color:var(--text-sub);">稼働時間</div>
+                    <div class="status-value" id="stat-uptime">0時間 0分</div>
                 </div>
-                <div style="color: var(--primary); font-size: 1.2rem;">➔</div>
+                <div class="status-item">
+                    <div style="font-size:0.75rem; color:var(--text-sub);">応答速度 (Ping)</div>
+                    <div class="status-value" id="stat-ping">0 ms</div>
+                </div>
+                <div class="status-item">
+                    <div style="font-size:0.75rem; color:var(--text-sub);">NG検知数</div>
+                    <div class="status-value" id="stat-ng">0 件</div>
+                </div>
+                <div class="status-item">
+                    <div style="font-size:0.75rem; color:var(--text-sub);">登録迷言数</div>
+                    <div class="status-value" id="stat-meigen">0 件</div>
+                </div>
             </div>
         </div>
 
-        <!-- 📊 システム稼働状況 -->
         <div class="card">
-            <div class="card-title">📊 システム稼働状況</div>
-            <div class="grid-2">
-                <div class="stat-box">
-                    <div class="desc">連続稼働時間</div>
-                    <div class="stat-value" id="val-uptime">取得中...</div>
-                </div>
-                <div class="stat-box">
-                    <div class="desc">レイテンシー (Ping)</div>
-                    <div class="stat-value" id="val-ping">取得中...</div>
-                </div>
-            </div>
-            <div class="grid-2">
-                <div class="stat-box">
-                    <div class="desc">検出済み迷言</div>
-                    <div class="stat-value" id="val-meigen">取得中...</div>
-                </div>
-                <div class="stat-box">
-                    <div class="desc">NGワード自動処理</div>
-                    <div class="stat-value" id="val-ng">取得中...</div>
-                </div>
-            </div>
-
-            <div style="margin-top: 12px;">
-                <div class="card-title" style="justify-content: space-between;">
-                    <span>⚡ CPU使用率 (<span id="val-cpu">0%</span>)</span>
-                    <span style="font-size:0.7rem; cursor:pointer; color:var(--primary);" id="change-speed">⏱️ 更新間隔: 1秒</span>
-                </div>
-                <canvas id="cpuChart" height="120"></canvas>
-            </div>
+            <div class="card-title">⚙️ 設定メニュー</div>
+            <button onclick="switchTab('settings')" class="save-btn" style="background: var(--card-inner); border: 1px solid var(--border-color); color: var(--text-main);">
+                詳細設定画面を開く ➔
+            </button>
         </div>
     </div>
 
     <!-- ⚙️ 設定 タブ -->
     <div id="tab-settings" class="page-section">
-        <div class="card">
-            <div class="card-title">📫 ようこそメッセージ & ログ設定</div>
-            <form id="setting-form">
+        <form id="setting-form">
+            <!-- 送信チャンネル設定 -->
+            <div class="card">
+                <div class="card-title">📫 機能＆送信チャンネル設定</div>
+                
                 <div class="form-group">
-                    <label>💬 ようこそメッセージ本文</label>
-                    <textarea id="welcome-msg" rows="3" placeholder="ようこそ {user} さん！"></textarea>
+                    <label>💬 ようこそメッセージ本文 (`{user}` でメンション)</label>
+                    <textarea id="welcome-msg" rows="2" placeholder="ようこそ {user} さん！"></textarea>
                 </div>
 
                 <div class="form-group">
-                    <label>🔕 メンションのサイレント（@silent）設定</label>
-                    <select id="silent-mode">
-                        <option value="none">通常メンション（通知あり）</option>
-                        <option value="always">常時サイレント（通知なし）</option>
-                        <option value="schedule">時間帯で切り替え</option>
-                    </select>
+                    <label>👋 ようこそメッセージ送信先</label>
+                    <select id="welcome-ch" class="ch-select"><option value="0">（未設定 / 無効）</option></select>
+                </div>
 
-                    <div class="time-range" id="time-setting" style="display: none;">
-                        <input type="time" id="silent-start" value="22:00">
-                        <span>〜</span>
-                        <input type="time" id="silent-end" value="07:00">
+                <div class="form-group">
+                    <label>🎉 レベルアップ通知先</label>
+                    <select id="level-ch" class="ch-select"><option value="0">（未設定 / 無効）</option></select>
+                </div>
+
+                <div class="form-group">
+                    <label>🚨 NGワード警報送信先</label>
+                    <select id="security-ch" class="ch-select"><option value="0">（未設定 / 無効）</option></select>
+                </div>
+
+                <div class="form-group">
+                    <label>🤪 迷言通知送信先</label>
+                    <select id="meigen-ch" class="ch-select"><option value="0">（未設定 / 無効）</option></select>
+                </div>
+            </div>
+
+            <!-- 🚫 NGワード設定 -->
+            <div class="card">
+                <div class="card-title">🚫 NGワード管理</div>
+                <div class="form-group">
+                    <label>対象の単語 (カンマ `,` 区切りで複数指定)</label>
+                    <textarea id="ng-words" rows="3" placeholder="スパムテスト, 荒らし, ngword"></textarea>
+                </div>
+            </div>
+
+            <!-- ⚡ スパム対策設定 -->
+            <div class="card">
+                <div class="card-title">⚡ スパムメッセージ対策</div>
+                <div class="grid-2">
+                    <div class="form-group">
+                        <label>時間枠 (秒)</label>
+                        <input type="number" id="spam-window-sec" value="5">
+                    </div>
+                    <div class="form-group">
+                        <label>最大許容数</label>
+                        <input type="number" id="spam-max-msgs" value="5">
                     </div>
                 </div>
-
                 <div class="form-group">
-                    <label>📜 編集・削除ログチャンネル (ID入力)</label>
-                    <input type="text" id="audit-ch" placeholder="チャンネルIDを入力">
+                    <label>1メッセージ内の最大メンション許容数</label>
+                    <input type="number" id="spam-max-mentions" value="5">
                 </div>
+            </div>
 
+            <!-- 📈 レベリング設定 -->
+            <div class="card">
+                <div class="card-title">📈 レベリング・EXP付与設定</div>
+                <div class="grid-2">
+                    <div class="form-group">
+                        <label>最小付与EXP</label>
+                        <input type="number" id="exp-min" value="10">
+                    </div>
+                    <div class="form-group">
+                        <label>最大付与EXP</label>
+                        <input type="number" id="exp-max" value="25">
+                    </div>
+                </div>
+                <div class="grid-2">
+                    <div class="form-group">
+                        <label>クールダウン (秒)</label>
+                        <input type="number" id="exp-cooldown" value="60">
+                    </div>
+                    <div class="form-group">
+                        <label>最小文字数</label>
+                        <input type="number" id="exp-min-len" value="5">
+                    </div>
+                </div>
                 <div class="form-group">
-                    <label>🚨 NGワード警報チャンネル (ID入力)</label>
-                    <input type="text" id="security-ch" placeholder="チャンネルIDを入力">
+                    <label>VC通話 1分あたりの獲得EXP</label>
+                    <input type="number" id="vc-exp" value="5">
                 </div>
+            </div>
 
-                <div class="form-group">
-                    <label>🤪 迷言通知チャンネル (ID入力)</label>
-                    <input type="text" id="meigen-ch" placeholder="チャンネルIDを入力">
-                </div>
-
-                <button type="button" class="save-btn" id="save-settings">設定を保存する</button>
-            </form>
-        </div>
+            <button type="button" class="save-btn" id="save-settings">すべての設定を保存する</button>
+        </form>
     </div>
 
     <!-- 📜 実行履歴 タブ -->
@@ -367,48 +364,10 @@
 </div>
 
 <script>
-    // --- 🎨 カラーテーマ切り替え＆OS連動機能 ---
-    const themeSelect = document.getElementById('user-theme-select');
-    const systemToggle = document.getElementById('system-theme-toggle');
-
-    function applyTheme(themeName) {
+    function changeTheme(themeName) {
         document.documentElement.setAttribute('data-theme', themeName);
     }
 
-    function checkThemeSettings() {
-        const useSystem = localStorage.getItem('useSystemTheme') === 'true';
-        systemToggle.checked = useSystem;
-        themeSelect.disabled = useSystem;
-
-        if (useSystem) {
-            const isDarkMode = window.matchMedia('(prefers-color-scheme: dark)').matches;
-            applyTheme(isDarkMode ? 'navy' : 'white');
-        } else {
-            const savedTheme = localStorage.getItem('userTheme') || 'navy';
-            themeSelect.value = savedTheme;
-            applyTheme(savedTheme);
-        }
-    }
-
-    themeSelect.addEventListener('change', (e) => {
-        const selected = e.target.value;
-        localStorage.setItem('userTheme', selected);
-        applyTheme(selected);
-    });
-
-    systemToggle.addEventListener('change', (e) => {
-        const isChecked = e.target.checked;
-        localStorage.setItem('useSystemTheme', isChecked);
-        checkThemeSettings();
-    });
-
-    window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
-        if (systemToggle.checked) checkThemeSettings();
-    });
-
-    checkThemeSettings();
-
-    // --- タブ切り替え ---
     function switchTab(tabName) {
         document.querySelectorAll('.page-section').forEach(el => el.classList.remove('active'));
         document.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('active'));
@@ -425,120 +384,92 @@
         }
     }
 
-    // --- CPU グラフ描画 ---
-    const ctx = document.getElementById('cpuChart').getContext('2d');
-    const maxDataPoints = 15;
-    let updateIntervalMs = 1000;
-
-    const cpuChart = new Chart(ctx, {
-        type: 'line',
-        data: {
-            labels: Array(maxDataPoints).fill(''),
-            datasets: [{
-                label: 'CPU %',
-                data: Array(maxDataPoints).fill(0),
-                borderColor: '#5865f2',
-                backgroundColor: 'rgba(88, 101, 242, 0.15)',
-                borderWidth: 2,
-                fill: true,
-                tension: 0.3,
-                pointRadius: 0
-            }]
-        },
-        options: {
-            responsive: true,
-            animation: false,
-            scales: {
-                x: { display: false },
-                y: { min: 0, max: 100, ticks: { color: '#949ba4', stepSize: 25 } }
-            },
-            plugins: { legend: { display: false } }
-        }
-    });
-
-    let fetchTimer = null;
-
-    async function fetchSystemStatus() {
+    async function fetchStatus() {
         try {
             const res = await fetch('/api/status');
             if (res.ok) {
                 const data = await res.json();
-                document.getElementById('val-uptime').innerText = data.uptime;
-                document.getElementById('val-ping').innerText = data.ping;
-                document.getElementById('val-meigen').innerText = data.meigen_count;
-                document.getElementById('val-ng').innerText = data.ng_count;
-                document.getElementById('val-cpu').innerText = data.cpu + '%';
-
-                cpuChart.data.datasets[0].data.push(data.cpu);
-                cpuChart.data.datasets[0].data.shift();
-                cpuChart.update();
+                document.getElementById('stat-uptime').innerText = data.uptime;
+                document.getElementById('stat-ping').innerText = data.ping;
+                document.getElementById('stat-ng').innerText = data.ng_count;
+                document.getElementById('stat-meigen').innerText = data.meigen_count;
             }
         } catch (e) {
             console.error('ステータス取得失敗:', e);
         }
     }
 
-    function startLoop() {
-        if (fetchTimer) clearInterval(fetchTimer);
-        fetchSystemStatus();
-        fetchTimer = setInterval(fetchSystemStatus, updateIntervalMs);
+    async function loadGuildChannels() {
+        const guildId = document.getElementById('server-select').value;
+        if (!guildId) return;
+
+        try {
+            const res = await fetch(`/api/channels?guild_id=${guildId}`);
+            if (res.ok) {
+                const data = await res.json();
+                document.querySelectorAll('.ch-select').forEach(select => {
+                    const currentVal = select.value;
+                    select.innerHTML = '<option value="0">（未設定 / 無効）</option>';
+                    data.channels.forEach(ch => {
+                        const opt = document.createElement('option');
+                        opt.value = ch.id;
+                        opt.textContent = `# ${ch.name}`;
+                        select.appendChild(opt);
+                    });
+                    select.value = currentVal;
+                });
+            }
+        } catch (e) {
+            console.error('チャンネル取得失敗:', e);
+        }
     }
 
-    const speedBtn = document.getElementById('change-speed');
-    speedBtn.addEventListener('click', () => {
-        if (updateIntervalMs === 1000) {
-            updateIntervalMs = 3000;
-            speedBtn.innerText = '⏱️ 更新間隔: 3秒';
-        } else if (updateIntervalMs === 3000) {
-            updateIntervalMs = 5000;
-            speedBtn.innerText = '⏱️ 更新間隔: 5秒';
-        } else {
-            updateIntervalMs = 1000;
-            speedBtn.innerText = '⏱️ 更新間隔: 1秒';
-        }
-        startLoop();
-    });
-
-    startLoop();
-
-    // サイレント切り替え
-    const silentMode = document.getElementById('silent-mode');
-    const timeSetting = document.getElementById('time-setting');
-    silentMode.addEventListener('change', () => {
-        timeSetting.style.display = silentMode.value === 'schedule' ? 'flex' : 'none';
-    });
-
-    // ⚙️ 設定取得処理
     async function loadCurrentSettings() {
+        await loadGuildChannels();
         try {
             const res = await fetch('/api/settings');
             if (res.ok) {
                 const data = await res.json();
-                document.getElementById('silent-mode').value = data.silent_mode || 'none';
-                document.getElementById('silent-start').value = data.silent_start || '22:00';
-                document.getElementById('silent-end').value = data.silent_end || '07:00';
-                if (data.silent_mode === 'schedule') {
-                    timeSetting.style.display = 'flex';
-                }
-
-                if (data.audit_ch) document.getElementById('audit-ch').value = data.audit_ch;
+                if (data.welcome_msg) document.getElementById('welcome-msg').value = data.welcome_msg;
+                if (data.welcome_ch) document.getElementById('welcome-ch').value = data.welcome_ch;
+                if (data.level_ch) document.getElementById('level-ch').value = data.level_ch;
                 if (data.security_ch) document.getElementById('security-ch').value = data.security_ch;
                 if (data.meigen_ch) document.getElementById('meigen-ch').value = data.meigen_ch;
+
+                if (data.ng_words) document.getElementById('ng-words').value = data.ng_words;
+                if (data.spam_window_sec) document.getElementById('spam-window-sec').value = data.spam_window_sec;
+                if (data.spam_max_msgs) document.getElementById('spam-max-msgs').value = data.spam_max_msgs;
+                if (data.spam_max_mentions) document.getElementById('spam-max-mentions').value = data.spam_max_mentions;
+
+                if (data.exp_min) document.getElementById('exp-min').value = data.exp_min;
+                if (data.exp_max) document.getElementById('exp-max').value = data.exp_max;
+                if (data.exp_cooldown) document.getElementById('exp-cooldown').value = data.exp_cooldown;
+                if (data.exp_min_len) document.getElementById('exp-min-len').value = data.exp_min_len;
+                if (data.vc_exp) document.getElementById('vc-exp').value = data.vc_exp;
             }
         } catch (e) {
             console.error('設定の読み込み失敗:', e);
         }
     }
 
-    // 💾 設定保存処理
     document.getElementById('save-settings').addEventListener('click', async () => {
         const payload = {
-            silent_mode: document.getElementById('silent-mode').value,
-            silent_start: document.getElementById('silent-start').value,
-            silent_end: document.getElementById('silent-end').value,
-            audit_ch: document.getElementById('audit-ch').value,
+            welcome_msg: document.getElementById('welcome-msg').value,
+            welcome_ch: document.getElementById('welcome-ch').value,
+            level_ch: document.getElementById('level-ch').value,
             security_ch: document.getElementById('security-ch').value,
-            meigen_ch: document.getElementById('meigen-ch').value
+            meigen_ch: document.getElementById('meigen-ch').value,
+            
+            ng_words: document.getElementById('ng-words').value,
+            spam_window_sec: document.getElementById('spam-window-sec').value,
+            spam_max_msgs: document.getElementById('spam-max-msgs').value,
+            spam_max_mentions: document.getElementById('spam-max-mentions').value,
+            
+            exp_min: document.getElementById('exp-min').value,
+            exp_max: document.getElementById('exp-max').value,
+            exp_cooldown: document.getElementById('exp-cooldown').value,
+            exp_min_len: document.getElementById('exp-min-len').value,
+            vc_exp: document.getElementById('vc-exp').value
         };
 
         try {
@@ -549,7 +480,7 @@
             });
 
             if (res.ok) {
-                alert('✅ 設定を保存・反映しました！');
+                alert('✅ すべての拡張設定を保存・反映しました！');
             } else {
                 alert('❌ 設定の保存に失敗しました。');
             }
@@ -558,6 +489,8 @@
         }
     });
 
+    fetchStatus();
+    setInterval(fetchStatus, 5000);
     loadCurrentSettings();
 </script>
 

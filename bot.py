@@ -10,6 +10,7 @@ import json
 import urllib.request
 import urllib.error
 import psutil
+from collections import defaultdict
 
 # --- [1. iOS / a-Shell 用のエラー回避設定] ---
 mock_audioop = types.ModuleType("audioop")
@@ -18,7 +19,7 @@ sys.modules["audioop._audioop"] = mock_audioop
 
 import discord
 from discord import app_commands
-from discord.ext import commands
+from discord.ext import commands, tasks
 from aiohttp import web
 
 # =========================================================
@@ -43,10 +44,26 @@ log_channels = {
     "meigen": 0
 }
 
-NG_WORDS = ["スパムテスト", "荒らし", "ngword"]
+welcome_message_template = "ようこそ {user} さん！HER Group サーバーへ！"
+
+# ---------------------------------------------------------
+# 詳細設定オブジェクト（JSONBin同期用 defaults）
+# ---------------------------------------------------------
+bot_config = {
+    "ng_words": ["スパムテスト", "荒らし", "ngword"],
+    "spam_max_msgs": 5,
+    "spam_window_sec": 5,
+    "spam_max_mentions": 5,
+    "exp_min_len": 5,
+    "exp_cooldown": 60,
+    "exp_min": 10,
+    "exp_max": 25,
+    "vc_exp": 5
+}
 
 # --- ☁️ クラウドデータ同期関数 ---
 def load_cloud_data():
+    global welcome_message_template, bot_config
     if not JSONBIN_KEY or not JSONBIN_BIN_ID:
         print("⚠️ JSONBINの鍵が設定されていないため、ローカルメモリで起動します。")
         return {}, []
@@ -63,10 +80,14 @@ def load_cloud_data():
                 xp_data = {int(k): v for k, v in record.get("user_xp", {}).items()}
                 meigen_data = record.get("meigen_list", [])
                 
-                # 保存されているチャンネル設定があれば読み込み
                 saved_channels = record.get("log_channels", {})
                 for k, v in saved_channels.items():
                     log_channels[k] = int(v)
+
+                welcome_message_template = record.get("welcome_message", welcome_message_template)
+                
+                saved_config = record.get("bot_config", {})
+                bot_config.update(saved_config)
 
                 print("☁️ クラウドからデータを読み込みました！")
                 return xp_data, meigen_data
@@ -81,7 +102,9 @@ def save_cloud_data():
     payload = json.dumps({
         "user_xp": {str(k): v for k, v in user_xp.items()},
         "meigen_list": meigen_list,
-        "log_channels": log_channels
+        "log_channels": log_channels,
+        "welcome_message": welcome_message_template,
+        "bot_config": bot_config
     }).encode("utf-8")
 
     req = urllib.request.Request(
@@ -104,9 +127,17 @@ user_xp, meigen_list = load_cloud_data()
 intents = discord.Intents.default()
 intents.message_content = True
 intents.members = True
+intents.voice_states = True
 
 bot = commands.Bot(command_prefix="!", intents=intents)
 user_message_time = {}
+
+# スパム検知用キャッシュ
+user_msg_timestamps = defaultdict(list)
+user_last_msg = defaultdict(lambda: {"last_msg": "", "count": 0})
+
+# VCタイムスタンプ用
+vc_join_times = {}
 
 def get_level(xp):
     level = 0
@@ -150,7 +181,7 @@ def evaluate_weirdness(text):
         return 1
     return 0
 
-# --- Web サーバー ＆ リアルタイムAPI ---
+# --- Web サーバー ＆ API ---
 async def handle_index(request):
     try:
         if os.path.exists("index.html"):
@@ -163,7 +194,6 @@ async def handle_index(request):
 
             html_content = html_content.replace('<!-- SERVER_OPTIONS -->', guilds_options)
             
-            # Content-Type ヘッダーを直接指定してHTMLとしてレンダリングさせる
             return web.Response(
                 body=html_content.encode('utf-8'),
                 headers={'Content-Type': 'text/html; charset=utf-8'}
@@ -202,24 +232,62 @@ async def get_status_api(request):
     }
     return web.json_response(status_data, headers={"Access-Control-Allow-Origin": "*"})
 
+async def get_channels_api(request):
+    guild_id = request.query.get('guild_id')
+    channels = []
+    if guild_id and guild_id.isdigit():
+        guild = bot.get_guild(int(guild_id))
+        if guild:
+            channels = [{"id": str(ch.id), "name": ch.name} for ch in guild.text_channels]
+    return web.json_response({"channels": channels}, headers={"Access-Control-Allow-Origin": "*"})
+
 async def get_settings_api(request):
     data = {
+        "welcome_msg": welcome_message_template,
         "silent_mode": "none",
         "silent_start": "22:00",
         "silent_end": "07:00",
+        "welcome_ch": str(log_channels.get("welcome", "")),
+        "level_ch": str(log_channels.get("level", "")),
         "audit_ch": str(log_channels.get("audit", "")),
         "security_ch": str(log_channels.get("security", "")),
-        "meigen_ch": str(log_channels.get("meigen", ""))
+        "meigen_ch": str(log_channels.get("meigen", "")),
+        
+        "ng_words": ",".join(bot_config.get("ng_words", [])),
+        "spam_max_msgs": bot_config.get("spam_max_msgs", 5),
+        "spam_window_sec": bot_config.get("spam_window_sec", 5),
+        "spam_max_mentions": bot_config.get("spam_max_mentions", 5),
+        "exp_min_len": bot_config.get("exp_min_len", 5),
+        "exp_cooldown": bot_config.get("exp_cooldown", 60),
+        "exp_min": bot_config.get("exp_min", 10),
+        "exp_max": bot_config.get("exp_max", 25),
+        "vc_exp": bot_config.get("vc_exp", 5)
     }
     return web.json_response(data, headers={"Access-Control-Allow-Origin": "*"})
 
 async def save_settings_api(request):
+    global welcome_message_template, bot_config
     try:
         data = await request.json()
+        if "welcome_msg" in data: welcome_message_template = data["welcome_msg"]
+        if "welcome_ch" in data: log_channels["welcome"] = int(data["welcome_ch"] or 0)
+        if "level_ch" in data: log_channels["level"] = int(data["level_ch"] or 0)
         if "audit_ch" in data: log_channels["audit"] = int(data["audit_ch"] or 0)
         if "security_ch" in data: log_channels["security"] = int(data["security_ch"] or 0)
         if "meigen_ch" in data: log_channels["meigen"] = int(data["meigen_ch"] or 0)
         
+        if "ng_words" in data:
+            bot_config["ng_words"] = [w.strip() for w in data["ng_words"].split(",") if w.strip()]
+        
+        if "spam_max_msgs" in data: bot_config["spam_max_msgs"] = int(data["spam_max_msgs"])
+        if "spam_window_sec" in data: bot_config["spam_window_sec"] = int(data["spam_window_sec"])
+        if "spam_max_mentions" in data: bot_config["spam_max_mentions"] = int(data["spam_max_mentions"])
+        if "exp_min_len" in data: bot_config["exp_min_len"] = int(data["exp_min_len"])
+        if "exp_cooldown" in data: bot_config["exp_cooldown"] = int(data["exp_cooldown"])
+        if "exp_min" in data: bot_config["exp_min"] = int(data["exp_min"])
+        if "exp_max" in data: bot_config["exp_max"] = int(data["exp_max"])
+        if "vc_exp" in data: bot_config["vc_exp"] = int(data["vc_exp"])
+
         save_cloud_data()
         return web.json_response({"status": "ok"}, headers={"Access-Control-Allow-Origin": "*"})
     except Exception as e:
@@ -231,6 +299,7 @@ async def start_web_server():
     app.router.add_get('/', handle_index)
     app.router.add_get('/index.html', handle_index)
     app.router.add_get('/api/status', get_status_api)
+    app.router.add_get('/api/channels', get_channels_api)
     app.router.add_get('/api/settings', get_settings_api)
     app.router.add_post('/api/settings', save_settings_api)
     
@@ -248,6 +317,16 @@ async def on_ready():
         print(f"✅ {len(synced)} 個のスラッシュコマンドを同期しました！")
     except Exception as e:
         print(f"❌ コマンド同期エラー: {e}")
+        
+    if not vc_exp_loop.is_running():
+        vc_exp_loop.start()
+
+@bot.event
+async def on_member_join(member):
+    welcome_ch = bot.get_channel(log_channels.get("welcome", 0))
+    if welcome_ch:
+        msg = welcome_message_template.replace("{user}", member.mention)
+        await welcome_ch.send(msg)
 
 @bot.event
 async def on_message(message):
@@ -255,25 +334,58 @@ async def on_message(message):
     if message.author.bot or not message.guild:
         return
 
-    for word in NG_WORDS:
-        if word in message.content:
+    author = message.author
+    u_id = author.id
+    current_time = time.time()
+
+    # 1. NGワード判定
+    for word in bot_config.get("ng_words", []):
+        if word and word.lower() in message.content.lower():
             ng_count += 1
-            await message.delete()
-            await message.channel.send(f"⚠️ {message.author.mention} 警告: 不適切な言葉が含まれていたため削除しました。", delete_after=5)
-            sec_channel = bot.get_channel(log_channels["security"])
+            try:
+                await message.delete()
+                await message.channel.send(f"⚠️ {author.mention} 警告: 不適切な言葉が含まれていたため削除しました。", delete_after=5)
+            except discord.Forbidden:
+                pass
+
+            sec_channel = bot.get_channel(log_channels.get("security", 0))
             if sec_channel:
                 embed = discord.Embed(title="🚨 NGワード検知", color=0xFF0000)
-                embed.add_field(name="ユーザー", value=message.author.mention, inline=True)
+                embed.add_field(name="ユーザー", value=author.mention, inline=True)
                 embed.add_field(name="内容", value=message.content, inline=False)
                 await sec_channel.send(embed=embed)
             return
 
+    # 2. スパム判定 (A) メンション数
+    if len(message.mentions) > bot_config.get("spam_max_mentions", 5):
+        try:
+            await message.delete()
+            await message.channel.send(f"⚠️ {author.mention} メンションが多すぎます。", delete_after=5)
+        except discord.Forbidden:
+            pass
+        return
+
+    # 2. スパム判定 (B) 連投速度
+    timestamps = user_msg_timestamps[u_id]
+    timestamps.append(current_time)
+    window = bot_config.get("spam_window_sec", 5)
+    user_msg_timestamps[u_id] = [t for t in timestamps if current_time - t <= window]
+
+    if len(user_msg_timestamps[u_id]) > bot_config.get("spam_max_msgs", 5):
+        try:
+            await message.delete()
+            await message.channel.send(f"⚠️ {author.mention} 連投を検知したためメッセージを削除しました。", delete_after=5)
+        except discord.Forbidden:
+            pass
+        return
+
+    # 3. 迷言判定
     weird_level = evaluate_weirdness(message.content)
     if weird_level > 0:
         if message.content not in meigen_list:
             meigen_list.append(message.content)
             save_cloud_data()
-            meigen_ch = bot.get_channel(log_channels["meigen"])
+            meigen_ch = bot.get_channel(log_channels.get("meigen", 0))
             if meigen_ch:
                 stars = "⭐" * weird_level
                 embed = discord.Embed(
@@ -281,33 +393,76 @@ async def on_message(message):
                     description=f"「 {message.content} 」",
                     color=0x9B59B6
                 )
-                embed.add_field(name="発言者", value=message.author.mention, inline=True)
+                embed.add_field(name="発言者", value=author.mention, inline=True)
                 embed.add_field(name="おかしさ度", value=f"{stars} ({weird_level}/5)", inline=True)
                 await meigen_ch.send(embed=embed)
 
-    user_id = message.author.id
-    now = datetime.datetime.now()
-    if user_id not in user_message_time or (now - user_message_time[user_id]).total_seconds() >= 60:
-        user_message_time[user_id] = now
-        if len(message.content) >= 3:
-            gained_xp = random.randint(15, 25)
-            old_xp = user_xp.get(user_id, 0)
-            new_xp = old_xp + gained_xp
-            user_xp[user_id] = new_xp
-            save_cloud_data()
+    # 4. レベリング判定 (EXP付与)
+    min_len = bot_config.get("exp_min_len", 5)
+    cooldown = bot_config.get("exp_cooldown", 60)
+    last_time = user_message_time.get(u_id, 0)
 
-            old_level = get_level(old_xp)
-            new_level = get_level(new_xp)
-            if new_level > old_level:
-                lvl_channel = bot.get_channel(log_channels["level"])
-                if lvl_channel:
-                    next_xp = get_next_level_xp(new_level)
-                    await lvl_channel.send(
-                        f"🎉 {message.author.mention} が **Level {new_level}** にアップしました！\n"
-                        f" (次のレベルまで あと `{next_xp - new_xp}` XP)"
-                    )
+    if (current_time - last_time >= cooldown) and (len(message.content) >= min_len):
+        user_message_time[u_id] = current_time
+        exp_min = bot_config.get("exp_min", 10)
+        exp_max = bot_config.get("exp_max", 25)
+        gained_xp = random.randint(exp_min, exp_max)
+
+        old_xp = user_xp.get(u_id, 0)
+        new_xp = old_xp + gained_xp
+        user_xp[u_id] = new_xp
+        save_cloud_data()
+
+        old_level = get_level(old_xp)
+        new_level = get_level(new_xp)
+        if new_level > old_level:
+            lvl_channel = bot.get_channel(log_channels.get("level", 0))
+            if lvl_channel:
+                next_xp = get_next_level_xp(new_level)
+                await lvl_channel.send(
+                    f"🎉 {author.mention} が **Level {new_level}** にアップしました！\n"
+                    f" (次のレベルまで あと `{next_xp - new_xp}` XP)"
+                )
 
     await bot.process_commands(message)
+
+# VC監視 ＆ EXP給付ループ
+@bot.event
+async def on_voice_state_update(member: discord.Member, before: discord.VoiceState, after: discord.VoiceState):
+    if member.bot:
+        return
+    if before.channel is None and after.channel is not None:
+        vc_join_times[member.id] = time.time()
+    elif before.channel is not None and after.channel is None:
+        vc_join_times.pop(member.id, None)
+
+@tasks.loop(minutes=1.0)
+async def vc_exp_loop():
+    vc_xp_val = bot_config.get("vc_exp", 5)
+    if vc_xp_val <= 0:
+        return
+
+    for guild in bot.guilds:
+        for vc in guild.voice_channels:
+            for member in vc.members:
+                if member.bot or (member.voice and (member.voice.self_mute or member.voice.deaf)):
+                    continue
+                if member.id in vc_join_times:
+                    old_xp = user_xp.get(member.id, 0)
+                    new_xp = old_xp + vc_xp_val
+                    user_xp[member.id] = new_xp
+                    
+                    old_level = get_level(old_xp)
+                    new_level = get_level(new_xp)
+                    if new_level > old_level:
+                        lvl_channel = bot.get_channel(log_channels.get("level", 0))
+                        if lvl_channel:
+                            next_xp = get_next_level_xp(new_level)
+                            await lvl_channel.send(
+                                f"🎉 VC通話により {member.mention} が **Level {new_level}** にアップしました！\n"
+                                f" (次のレベルまで あと `{next_xp - new_xp}` XP)"
+                            )
+    save_cloud_data()
 
 @bot.tree.command(name="rank", description="自分の現在のレベルとXPを確認します")
 @app_commands.guild_only()
