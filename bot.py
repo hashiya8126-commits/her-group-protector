@@ -62,6 +62,12 @@ def load_cloud_data():
                 record = data.get("record", {})
                 xp_data = {int(k): v for k, v in record.get("user_xp", {}).items()}
                 meigen_data = record.get("meigen_list", [])
+                
+                # 保存されているチャンネル設定があれば読み込み
+                saved_channels = record.get("log_channels", {})
+                for k, v in saved_channels.items():
+                    log_channels[k] = int(v)
+
                 print("☁️ クラウドからデータを読み込みました！")
                 return xp_data, meigen_data
     except Exception as e:
@@ -74,7 +80,8 @@ def save_cloud_data():
 
     payload = json.dumps({
         "user_xp": {str(k): v for k, v in user_xp.items()},
-        "meigen_list": meigen_list
+        "meigen_list": meigen_list,
+        "log_channels": log_channels
     }).encode("utf-8")
 
     req = urllib.request.Request(
@@ -154,7 +161,7 @@ async def handle_index(request):
             if not guilds_options:
                 guilds_options = '<option value="">参加中のサーバーがありません</option>'
 
-            html_content = html_content.replace('<!-- SERVER_OPTIONS -->', guilds_options)
+            html_content = html_content.replace('', guilds_options)
             return web.Response(text=html_content, content_type='text/html')
         else:
             return web.Response(text="<h1>HER Group Protector</h1><p>index.html が見つかりません。</p>", content_type='text/html')
@@ -186,12 +193,37 @@ async def get_status_api(request):
     }
     return web.json_response(status_data, headers={"Access-Control-Allow-Origin": "*"})
 
+async def get_settings_api(request):
+    data = {
+        "silent_mode": "none",
+        "silent_start": "22:00",
+        "silent_end": "07:00",
+        "audit_ch": str(log_channels.get("audit", "")),
+        "security_ch": str(log_channels.get("security", "")),
+        "meigen_ch": str(log_channels.get("meigen", ""))
+    }
+    return web.json_response(data, headers={"Access-Control-Allow-Origin": "*"})
+
+async def save_settings_api(request):
+    try:
+        data = await request.json()
+        if "audit_ch" in data: log_channels["audit"] = int(data["audit_ch"] or 0)
+        if "security_ch" in data: log_channels["security"] = int(data["security_ch"] or 0)
+        if "meigen_ch" in data: log_channels["meigen"] = int(data["meigen_ch"] or 0)
+        
+        save_cloud_data()
+        return web.json_response({"status": "ok"}, headers={"Access-Control-Allow-Origin": "*"})
+    except Exception as e:
+        return web.json_response({"status": "error", "message": str(e)}, status=400)
+
 async def start_web_server():
     port = int(os.getenv("PORT", 10000))
     app = web.Application()
     app.router.add_get('/', handle_index)
     app.router.add_get('/index.html', handle_index)
     app.router.add_get('/api/status', get_status_api)
+    app.router.add_get('/api/settings', get_settings_api)
+    app.router.add_post('/api/settings', save_settings_api)
     
     runner = web.AppRunner(app)
     await runner.setup()

@@ -6,7 +6,8 @@
     <title>HER Group Protector</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
-        :root {
+        /* デフォルトテーマ（ネイビー） */
+        :root, [data-theme="navy"] {
             --bg-color: #0f111a;
             --card-bg: #1a1d2d;
             --card-inner: #24283b;
@@ -17,6 +18,30 @@
             --accent-green: #2ecc71;
         }
 
+        /* 真っ黒テーマ */
+        [data-theme="black"] {
+            --bg-color: #000000;
+            --card-bg: #121212;
+            --card-inner: #1e1e1e;
+            --primary: #5865f2;
+            --text-main: #ffffff;
+            --text-sub: #a0a0a0;
+            --border-color: #2c2c2c;
+            --accent-green: #2ecc71;
+        }
+
+        /* 真っ白テーマ */
+        [data-theme="white"] {
+            --bg-color: #f5f6f8;
+            --card-bg: #ffffff;
+            --card-inner: #f0f2f5;
+            --primary: #5865f2;
+            --text-main: #111827;
+            --text-sub: #6b7280;
+            --border-color: #e5e7eb;
+            --accent-green: #10b981;
+        }
+
         body {
             margin: 0;
             padding: 20px;
@@ -25,6 +50,7 @@
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
             display: flex;
             justify-content: center;
+            transition: background-color 0.3s, color 0.3s;
         }
 
         .container {
@@ -80,6 +106,7 @@
             padding: 16px;
             margin-bottom: 16px;
             border: 1px solid var(--border-color);
+            transition: background-color 0.3s, border-color 0.3s;
         }
 
         .card-title {
@@ -100,6 +127,7 @@
             color: var(--text-main);
             font-size: 0.95rem;
             box-sizing: border-box;
+            transition: background-color 0.3s, color 0.3s;
         }
 
         .status-badge {
@@ -115,7 +143,7 @@
             display: flex;
             align-items: center;
             justify-content: space-between;
-            color: white;
+            color: var(--text-main);
             cursor: pointer;
             border: 1px solid var(--border-color);
         }
@@ -176,6 +204,23 @@
             cursor: pointer;
             margin-top: 10px;
         }
+
+        /* 個人設定の見た目 */
+        .setting-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 12px;
+        }
+
+        .setting-row:last-child {
+            margin-bottom: 0;
+        }
+
+        .setting-label {
+            font-size: 0.85rem;
+            color: var(--text-main);
+        }
     </style>
 </head>
 <body>
@@ -191,20 +236,32 @@
         <button class="tab-btn" onclick="switchTab('logs')">📜 実行履歴</button>
     </div>
 
-    <!-- 共通：サーバー選択 -->
+    <div class="card">
+        <div class="card-title">👤 個人設定 (表示スタイル)</div>
+        <div class="setting-row">
+            <span class="setting-label">🎨 カラーテーマ</span>
+            <select id="user-theme-select" style="width: auto; padding: 6px 12px;">
+                <option value="navy">標準 (ダークネイビー)</option>
+                <option value="black">真っ黒 (ピュアブラック)</option>
+                <option value="white">真っ白 (ライトモード)</option>
+            </select>
+        </div>
+        <div class="setting-row">
+            <span class="setting-label">💻 システム（OS）の設定に合わせる</span>
+            <input type="checkbox" id="system-theme-toggle" style="width: auto; cursor: pointer;">
+        </div>
+    </div>
+
     <div class="card">
         <div class="card-title">🌐 管理するサーバーを選択</div>
         <select id="server-select">
-            <!-- SERVER_OPTIONS -->
-        </select>
+            </select>
         <div class="status-badge">
             🟢 Botオンライン (HER Group Protector BOT)
         </div>
     </div>
 
-    <!-- 🏠 ホーム タブ -->
     <div id="tab-home" class="page-section active">
-        <!-- ⚙️ 設定メニュー（システム状況の上に配置） -->
         <div class="card">
             <div class="card-title">⚙️ 設定メニュー</div>
             <div class="menu-item" onclick="switchTab('settings')">
@@ -216,7 +273,6 @@
             </div>
         </div>
 
-        <!-- 📊 システム稼働状況 (実数値連動) -->
         <div class="card">
             <div class="card-title">📊 システム稼働状況</div>
             <div class="grid-2">
@@ -250,7 +306,6 @@
         </div>
     </div>
 
-    <!-- ⚙️ 設定 タブ -->
     <div id="tab-settings" class="page-section">
         <div class="card">
             <div class="card-title">📫 ようこそメッセージ & ログ設定</div>
@@ -276,24 +331,18 @@
                 </div>
 
                 <div class="form-group">
-                    <label>📜 編集・削除ログチャンネル</label>
-                    <select class="channel-select" id="audit-ch">
-                        <option value="">チャンネルを選択してください</option>
-                    </select>
+                    <label>📜 編集・削除ログチャンネル (ID入力)</label>
+                    <input type="text" id="audit-ch" placeholder="チャンネルIDを入力">
                 </div>
 
                 <div class="form-group">
-                    <label>🚨 NGワード警報チャンネル</label>
-                    <select class="channel-select" id="security-ch">
-                        <option value="">チャンネルを選択してください</option>
-                    </select>
+                    <label>🚨 NGワード警報チャンネル (ID入力)</label>
+                    <input type="text" id="security-ch" placeholder="チャンネルIDを入力">
                 </div>
 
                 <div class="form-group">
-                    <label>🤪 迷言通知チャンネル</label>
-                    <select class="channel-select" id="meigen-ch">
-                        <option value="">チャンネルを選択してください</option>
-                    </select>
+                    <label>🤪 迷言通知チャンネル (ID入力)</label>
+                    <input type="text" id="meigen-ch" placeholder="チャンネルIDを入力">
                 </div>
 
                 <button type="button" class="save-btn" id="save-settings">設定を保存する</button>
@@ -301,7 +350,6 @@
         </div>
     </div>
 
-    <!-- 📜 実行履歴 タブ -->
     <div id="tab-logs" class="page-section">
         <div class="card">
             <div class="card-title">📜 実行履歴</div>
@@ -311,6 +359,48 @@
 </div>
 
 <script>
+    // --- 🎨 カラーテーマ切り替え＆OS連動機能 ---
+    const themeSelect = document.getElementById('user-theme-select');
+    const systemToggle = document.getElementById('system-theme-toggle');
+
+    function applyTheme(themeName) {
+        document.documentElement.setAttribute('data-theme', themeName);
+    }
+
+    function checkThemeSettings() {
+        const useSystem = localStorage.getItem('useSystemTheme') === 'true';
+        systemToggle.checked = useSystem;
+        themeSelect.disabled = useSystem;
+
+        if (useSystem) {
+            const isDarkMode = window.matchMedia('(prefers-color-scheme: dark)').matches;
+            applyTheme(isDarkMode ? 'navy' : 'white');
+        } else {
+            const savedTheme = localStorage.getItem('userTheme') || 'navy';
+            themeSelect.value = savedTheme;
+            applyTheme(savedTheme);
+        }
+    }
+
+    themeSelect.addEventListener('change', (e) => {
+        const selected = e.target.value;
+        localStorage.setItem('userTheme', selected);
+        applyTheme(selected);
+    });
+
+    systemToggle.addEventListener('change', (e) => {
+        const isChecked = e.target.checked;
+        localStorage.setItem('useSystemTheme', isChecked);
+        checkThemeSettings();
+    });
+
+    window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
+        if (systemToggle.checked) checkThemeSettings();
+    });
+
+    checkThemeSettings();
+
+    // --- タブ切り替え ---
     function switchTab(tabName) {
         document.querySelectorAll('.page-section').forEach(el => el.classList.remove('active'));
         document.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('active'));
@@ -410,12 +500,57 @@
         timeSetting.style.display = silentMode.value === 'schedule' ? 'flex' : 'none';
     });
 
-    // 設定保存
-    document.getElementById('save-settings').addEventListener('click', () => {
-        alert('設定を保存しました！');
-        document.getElementById('setting-form').reset();
-        timeSetting.style.display = 'none';
+    // ⚙️ 設定取得処理
+    async function loadCurrentSettings() {
+        try {
+            const res = await fetch('/api/settings');
+            if (res.ok) {
+                const data = await res.json();
+                document.getElementById('silent-mode').value = data.silent_mode || 'none';
+                document.getElementById('silent-start').value = data.silent_start || '22:00';
+                document.getElementById('silent-end').value = data.silent_end || '07:00';
+                if (data.silent_mode === 'schedule') {
+                    timeSetting.style.display = 'flex';
+                }
+
+                if (data.audit_ch) document.getElementById('audit-ch').value = data.audit_ch;
+                if (data.security_ch) document.getElementById('security-ch').value = data.security_ch;
+                if (data.meigen_ch) document.getElementById('meigen-ch').value = data.meigen_ch;
+            }
+        } catch (e) {
+            console.error('設定の読み込み失敗:', e);
+        }
+    }
+
+    // 💾 設定保存処理
+    document.getElementById('save-settings').addEventListener('click', async () => {
+        const payload = {
+            silent_mode: document.getElementById('silent-mode').value,
+            silent_start: document.getElementById('silent-start').value,
+            silent_end: document.getElementById('silent-end').value,
+            audit_ch: document.getElementById('audit-ch').value,
+            security_ch: document.getElementById('security-ch').value,
+            meigen_ch: document.getElementById('meigen-ch').value
+        };
+
+        try {
+            const res = await fetch('/api/settings', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+
+            if (res.ok) {
+                alert('✅ 設定を保存・反映しました！');
+            } else {
+                alert('❌ 設定の保存に失敗しました。');
+            }
+        } catch (e) {
+            alert('❌ 通信エラーが発生しました。');
+        }
     });
+
+    loadCurrentSettings();
 </script>
 
 </body>
