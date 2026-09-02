@@ -4,6 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>HER Group Protector</title>
+    <!-- グラフ描画用ライブラリ -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         :root {
             --bg-color: #0f111a;
@@ -13,6 +15,7 @@
             --text-main: #ffffff;
             --text-sub: #949ba4;
             --border-color: #2b2f48;
+            --success-color: #43b581;
         }
 
         body {
@@ -41,23 +44,88 @@
             align-items: center;
             justify-content: center;
             gap: 8px;
+            margin: 0 0 10px 0;
+        }
+
+        /* --- ナビゲーションタブ --- */
+        .nav-tabs {
+            display: flex;
+            gap: 8px;
+            background-color: var(--card-bg);
+            padding: 4px;
+            border-radius: 10px;
+            margin-bottom: 16px;
+            border: 1px solid var(--border-color);
+        }
+
+        .tab-btn {
+            flex: 1;
+            padding: 8px;
+            text-align: center;
+            background: none;
+            border: none;
+            color: var(--text-sub);
+            font-weight: bold;
+            font-size: 0.85rem;
+            border-radius: 8px;
+            cursor: pointer;
+        }
+
+        .tab-btn.active {
+            background-color: var(--accent-color);
+            color: #fff;
+        }
+
+        /* 画面切り替え用クラス */
+        .page-content {
+            display: none;
+        }
+        .page-content.active {
+            display: block;
         }
 
         .card {
             background-color: var(--card-bg);
             border-radius: 12px;
             padding: 16px;
-            margin-bottom: 20px;
+            margin-bottom: 16px;
             border: 1px solid var(--border-color);
         }
 
         .section-title {
-            font-size: 0.9rem;
+            font-size: 0.85rem;
             color: var(--text-sub);
-            margin-bottom: 12px;
+            margin-bottom: 10px;
             display: flex;
             align-items: center;
             gap: 6px;
+        }
+
+        /* --- グリッドステータス --- */
+        .status-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            margin-bottom: 12px;
+        }
+
+        .status-box {
+            background-color: #121420;
+            padding: 10px;
+            border-radius: 8px;
+            border: 1px solid var(--border-color);
+        }
+
+        .status-box .label {
+            font-size: 0.75rem;
+            color: var(--text-sub);
+        }
+
+        .status-box .value {
+            font-size: 1.1rem;
+            font-weight: bold;
+            margin-top: 4px;
+            color: var(--text-main);
         }
 
         select, button, input, textarea {
@@ -88,19 +156,41 @@
         }
 
         .card-info h3 {
-            margin: 0 0 6px 0;
-            font-size: 1rem;
+            margin: 0 0 4px 0;
+            font-size: 0.95rem;
         }
 
         .card-info p {
             margin: 0;
-            font-size: 0.8rem;
+            font-size: 0.75rem;
             color: var(--text-sub);
         }
 
         .arrow {
             font-size: 1.2rem;
             color: var(--accent-color);
+        }
+
+        /* --- 履歴リスト --- */
+        .history-list {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }
+
+        .history-item {
+            background-color: #121420;
+            border-radius: 8px;
+            padding: 12px;
+            margin-bottom: 8px;
+            border: 1px solid var(--border-color);
+            font-size: 0.85rem;
+        }
+
+        .history-item .time {
+            font-size: 0.75rem;
+            color: var(--text-sub);
+            margin-bottom: 4px;
         }
 
         /* --- モーダル (設定ポップアップ) --- */
@@ -191,28 +281,97 @@
         <h1>🛡️ HER Group Protector</h1>
     </div>
 
-    <div class="card">
-        <div class="section-title">🌐 管理するサーバーを選択</div>
-        <select id="server-select">
-            <!-- SERVER_OPTIONS -->
-        </select>
-        <div style="margin-top: 10px; font-size: 0.85rem; color: #43b581;">
-            🟢 Botオンライン (HER Group Protector BOT)
+    <!-- 🔄 タブ切替（ホーム / 履歴） -->
+    <div class="nav-tabs">
+        <button class="tab-btn active" id="tab-home">🏠 ホーム</button>
+        <button class="tab-btn" id="tab-history">📜 実行履歴</button>
+    </div>
+
+    <!-- ================= 🏠 ホーム画面 ================= -->
+    <div id="page-home" class="page-content active">
+        <!-- サーバー選択 -->
+        <div class="card">
+            <div class="section-title">🌐 管理するサーバーを選択</div>
+            <select id="server-select">
+                <!-- SERVER_OPTIONS -->
+            </select>
+            <div style="margin-top: 10px; font-size: 0.85rem; color: var(--success-color);">
+                🟢 Botオンライン (HER Group Protector BOT)
+            </div>
+        </div>
+
+        <!-- 📊 稼働状況 ＆ CPUグラフ -->
+        <div class="card">
+            <div class="section-title">📊 システム稼働状況</div>
+            
+            <div class="status-grid">
+                <div class="status-box">
+                    <div class="label">連続稼働時間</div>
+                    <div class="value" id="uptime-val">12時間 34分</div>
+                </div>
+                <div class="status-box">
+                    <div class="label">レイテンシー (Ping)</div>
+                    <div class="value" id="ping-val">24 ms</div>
+                </div>
+                <div class="status-box">
+                    <div class="label">検出済み迷言</div>
+                    <div class="value" id="meigen-count">18 件</div>
+                </div>
+                <div class="status-box">
+                    <div class="label">NGワード自動処理</div>
+                    <div class="value" id="ng-count">5 件</div>
+                </div>
+            </div>
+
+            <!-- CPUグラフ -->
+            <div style="margin-top: 10px;">
+                <div class="section-title" style="justify-content: space-between;">
+                    <span>⚡ CPU使用率 (<span id="cpu-now">0%</span>)</span>
+                    <!-- 更新速度の変更ボタン -->
+                    <span style="font-size:0.7rem; cursor:pointer; color:var(--accent-color);" id="change-speed">⏱️ 更新間隔: 1秒</span>
+                </div>
+                <canvas id="cpuChart" height="120"></canvas>
+            </div>
+        </div>
+
+        <!-- 設定メニュー -->
+        <div class="section-title">⚙️ 設定メニュー</div>
+        <div class="clickable-card" id="open-welcome-modal">
+            <div class="card-info">
+                <h3>📫 ようこそメッセージ & ログ設定</h3>
+                <p>新規参加者の歓迎メッセージや各種ログチャンネルの設定</p>
+            </div>
+            <div class="arrow">➔</div>
         </div>
     </div>
 
-    <div class="section-title">⚙️ 設定メニュー</div>
-
-    <div class="clickable-card" id="open-welcome-modal">
-        <div class="card-info">
-            <h3>📫 ようこそメッセージ & ログ設定</h3>
-            <p>新規参加者の歓迎メッセージや各種ログチャンネルの設定</p>
+    <!-- ================= 📜 履歴画面（画面切り替え） ================= -->
+    <div id="page-history" class="page-content">
+        <div class="card">
+            <div class="section-title">📜 最近の自動処置・アクティビティ履歴</div>
+            <ul class="history-list">
+                <li class="history-item">
+                    <div class="time">2026/09/03 00:05</div>
+                    <div>🤪 <strong>迷言自動検知:</strong> 「たかしくんはりんごを…」を追加しました。</div>
+                </li>
+                <li class="history-item">
+                    <div class="time">2026/09/02 23:41</div>
+                    <div>⚠️ <strong>NGワードブロック:</strong> ユーザー @テスト さんの投稿を削除しました。</div>
+                </li>
+                <li class="history-item">
+                    <div class="time">2026/09/02 22:15</div>
+                    <div>🎉 <strong>レベルアップ:</strong> @ユーザーA が Level 3 に到達しました。</div>
+                </li>
+                <li class="history-item">
+                    <div class="time">2026/09/02 18:00</div>
+                    <div>⚙️ <strong>設定更新:</strong> 迷言通知チャンネルが変更されました。</div>
+                </li>
+            </ul>
         </div>
-        <div class="arrow">➔</div>
     </div>
 </div>
 
-<!-- ⚙️ 設定用モーダル（ポップアップ画面） -->
+<!-- ⚙️ 設定用モーダル（ポップアップ） -->
 <div class="modal-overlay" id="welcome-modal">
     <div class="modal">
         <div class="modal-header">
@@ -226,7 +385,6 @@
                 <textarea id="welcome-msg" rows="3" placeholder="ようこそ {user} さん！"></textarea>
             </div>
 
-            <!-- 🔕 メンション・サイレント設定 -->
             <div class="form-group">
                 <label>🔕 メンションのサイレント（@silent）設定</label>
                 <select id="silent-mode">
@@ -242,7 +400,6 @@
                 </div>
             </div>
 
-            <!-- チャンネル選択（ドロップダウン化） -->
             <div class="form-group">
                 <label>📜 編集・削除ログチャンネル</label>
                 <select class="channel-select" id="audit-ch">
@@ -270,6 +427,93 @@
 </div>
 
 <script>
+    // --- 画面切り替え（タブ）処理 ---
+    const tabHome = document.getElementById('tab-home');
+    const tabHistory = document.getElementById('tab-history');
+    const pageHome = document.getElementById('page-home');
+    const pageHistory = document.getElementById('page-history');
+
+    tabHome.addEventListener('click', () => {
+        tabHome.classList.add('active');
+        tabHistory.classList.remove('active');
+        pageHome.classList.add('active');
+        pageHistory.classList.remove('active');
+    });
+
+    tabHistory.addEventListener('click', () => {
+        tabHistory.classList.add('active');
+        tabHome.classList.remove('active');
+        pageHistory.classList.add('active');
+        pageHome.classList.remove('active');
+    });
+
+    // --- 📈 CPU リアルタイムグラフ処理 ---
+    const ctx = document.getElementById('cpuChart').getContext('2d');
+    const maxDataPoints = 15;
+    let updateIntervalMs = 1000; // 初期設定: 1秒更新
+
+    const cpuChart = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: Array(maxDataPoints).fill(''),
+            datasets: [{
+                label: 'CPU %',
+                data: Array(maxDataPoints).fill(0),
+                borderColor: '#5865f2',
+                backgroundColor: 'rgba(88, 101, 242, 0.15)',
+                borderWidth: 2,
+                fill: true,
+                tension: 0.3,
+                pointRadius: 0
+            }]
+        },
+        options: {
+            responsive: true,
+            animation: false,
+            scales: {
+                x: { display: false },
+                y: { min: 0, max: 100, ticks: { color: '#949ba4', stepSize: 25 } }
+            },
+            plugins: { legend: { display: false } }
+        }
+    });
+
+    let chartTimer = null;
+
+    function updateChart() {
+        // デモ用ランダムCPU使用率（2%〜18%の間で変動）
+        const newUsage = Math.floor(Math.random() * 16) + 2;
+        document.getElementById('cpu-now').innerText = `${newUsage}%`;
+
+        cpuChart.data.datasets[0].data.push(newUsage);
+        cpuChart.data.datasets[0].data.shift();
+        cpuChart.update();
+    }
+
+    function startChartLoop() {
+        if (chartTimer) clearInterval(chartTimer);
+        chartTimer = setInterval(updateChart, updateIntervalMs);
+    }
+
+    // 速度切り替えボタン
+    const speedBtn = document.getElementById('change-speed');
+    speedBtn.addEventListener('click', () => {
+        if (updateIntervalMs === 1000) {
+            updateIntervalMs = 3000; // 3秒更新
+            speedBtn.innerText = '⏱️ 更新間隔: 3秒';
+        } else if (updateIntervalMs === 3000) {
+            updateIntervalMs = 5000; // 5秒更新
+            speedBtn.innerText = '⏱️ 更新間隔: 5秒';
+        } else {
+            updateIntervalMs = 1000; // 1秒更新
+            speedBtn.innerText = '⏱️ 更新間隔: 1秒';
+        }
+        startChartLoop();
+    });
+
+    startChartLoop();
+
+    // --- モーダル (設定ポップアップ) 処理 ---
     const modal = document.getElementById('welcome-modal');
     const openBtn = document.getElementById('open-welcome-modal');
     const closeBtn = document.getElementById('close-modal');
@@ -278,41 +522,19 @@
     const timeSetting = document.getElementById('time-setting');
     const settingForm = document.getElementById('setting-form');
 
-    // サイレントモード選択の切り替え（時間帯設定の表示・非表示）
     silentMode.addEventListener('change', () => {
-        if (silentMode.value === 'schedule') {
-            timeSetting.style.display = 'flex';
-        } else {
-            timeSetting.style.display = 'none';
-        }
+        timeSetting.style.display = silentMode.value === 'schedule' ? 'flex' : 'none';
     });
 
-    // モーダルを開く
-    openBtn.addEventListener('click', () => {
-        modal.style.display = 'flex';
-    });
-
-    // モーダルを閉じる関数
-    const closeModal = () => {
-        modal.style.display = 'none';
-    };
-
+    openBtn.addEventListener('click', () => { modal.style.display = 'flex'; });
+    const closeModal = () => { modal.style.display = 'none'; };
     closeBtn.addEventListener('click', closeModal);
+    window.addEventListener('click', (e) => { if (e.target === modal) closeModal(); });
 
-    window.addEventListener('click', (e) => {
-        if (e.target === modal) {
-            closeModal();
-        }
-    });
-
-    // 設定を保存 ＆ フォーム内容の初期化（クリア）
     saveBtn.addEventListener('click', () => {
         alert('設定を保存しました！');
-        
-        // フォームのリセット（次回開いた時は空にする）
         settingForm.reset();
         timeSetting.style.display = 'none';
-        
         closeModal();
     });
 </script>
