@@ -3,10 +3,13 @@ import types
 import os
 import random
 import datetime
+import time
 import asyncio
 import re
 import json
-import requests
+import urllib.request
+import urllib.error
+import psutil
 
 # --- [1. iOS / a-Shell 用のエラー回避設定] ---
 mock_audioop = types.ModuleType("audioop")
@@ -23,64 +26,72 @@ from aiohttp import web
 # =========================================================
 
 BOT_TOKEN = os.getenv("BOT_TOKEN", os.getenv("DISCORD_TOKEN", ""))
-
-# JSONBin.io 設定（Renderの環境変数から取得）
 JSONBIN_KEY = os.getenv("JSONBIN_KEY", "")
 JSONBIN_BIN_ID = os.getenv("JSONBIN_BIN_ID", "")
 JSONBIN_URL = f"https://api.jsonbin.io/v3/b/{JSONBIN_BIN_ID}"
 
-# ログ用・通知用チャンネルID
+# 稼働時間・統計用
+start_time = time.time()
+ng_count = 0
+
 log_channels = {
-    "audit": 1436724897681510430,      # 編集・削除ログ
-    "join": 1436724863640273078,       # 入退出ログ
-    "level": 1534827182499823646,      # レベルアップ通知
-    "security": 1436724949870973149,   # NGワード警報
-    "welcome": 1343233372482437140,    # ようこそメッセージ
-    "meigen": 0                        # 迷言専用チャンネル
+    "audit": 1436724897681510430,
+    "join": 1436724863640273078,
+    "level": 1534827182499823646,
+    "security": 1436724949870973149,
+    "welcome": 1343233372482437140,
+    "meigen": 0
 }
 
 NG_WORDS = ["スパムテスト", "荒らし", "ngword"]
 
 # --- ☁️ クラウドデータ同期関数 ---
 def load_cloud_data():
-    """クラウドからデータ(user_xp, meigen_list)を取得"""
     if not JSONBIN_KEY or not JSONBIN_BIN_ID:
         print("⚠️ JSONBINの鍵が設定されていないため、ローカルメモリで起動します。")
         return {}, []
 
-    headers = {"X-Master-Key": JSONBIN_KEY}
+    req = urllib.request.Request(
+        JSONBIN_URL,
+        headers={"X-Master-Key": JSONBIN_KEY}
+    )
     try:
-        res = requests.get(JSONBIN_URL, headers=headers)
-        if res.status_code == 200:
-            record = res.json().get("record", {})
-            xp_data = {int(k): v for k, v in record.get("user_xp", {}).items()}
-            meigen_data = record.get("meigen_list", [])
-            print("☁️ クラウドからデータを読み込みました！")
-            return xp_data, meigen_data
+        with urllib.request.urlopen(req) as res:
+            if res.status == 200:
+                data = json.loads(res.read().decode("utf-8"))
+                record = data.get("record", {})
+                xp_data = {int(k): v for k, v in record.get("user_xp", {}).items()}
+                meigen_data = record.get("meigen_list", [])
+                print("☁️ クラウドからデータを読み込みました！")
+                return xp_data, meigen_data
     except Exception as e:
         print(f"❌ クラウド読み込みエラー: {e}")
     return {}, []
 
 def save_cloud_data():
-    """クラウドへ最新データ(user_xp, meigen_list)を保存"""
     if not JSONBIN_KEY or not JSONBIN_BIN_ID:
         return
 
-    headers = {
-        "Content-Type": "application/json",
-        "X-Master-Key": JSONBIN_KEY
-    }
-    payload = {
+    payload = json.dumps({
         "user_xp": {str(k): v for k, v in user_xp.items()},
         "meigen_list": meigen_list
-    }
+    }).encode("utf-8")
+
+    req = urllib.request.Request(
+        JSONBIN_URL,
+        data=payload,
+        headers={
+            "Content-Type": "application/json",
+            "X-Master-Key": JSONBIN_KEY
+        },
+        method="PUT"
+    )
     try:
-        requests.put(JSONBIN_URL, headers=headers, json=payload)
+        with urllib.request.urlopen(req) as res:
+            pass
     except Exception as e:
         print(f"❌ クラウド保存エラー: {e}")
 
-
-# データの初期ロード
 user_xp, meigen_list = load_cloud_data()
 
 intents = discord.Intents.default()
@@ -90,8 +101,6 @@ intents.members = True
 bot = commands.Bot(command_prefix="!", intents=intents)
 user_message_time = {}
 
-
-# --- レベル計算式 ---
 def get_level(xp):
     level = 0
     while xp >= 100 * ((level + 1) ** 2):
@@ -101,36 +110,27 @@ def get_level(xp):
 def get_next_level_xp(level):
     return 100 * ((level + 1) ** 2)
 
-
-# --- 🤪 シュール構文の自動判定 ---
 def evaluate_weirdness(text):
     if len(text) < 4:
         return 0
-
     score = 0
     if re.search(r'(問[1-9一二三]|求めなさい|求めよ|ただし|とする[。 \n]|答えよ)', text):
         score += 2
-
     keywords = ['速度', '質量', '気体', '定数', '電離', '因果', '文脈', '筆者', '傍線部', '矛盾', '極限', '証明']
     kw_count = sum(1 for kw in keywords if kw in text)
     if kw_count >= 2:
         score += 2
     elif kw_count == 1:
         score += 1
-
     if re.search(r'(言いました|思った|突然|突如|こう言った|なぜなら|結果|しかし)', text) and len(text) > 20:
         score += 1
-
     if re.search(r'(.)\1{3,}', text):
         score += 2
-    
     symbol_count = len(re.findall(r'[!?！？w草#$%\^&\*()_\-+=\[\]{};:\'",<>\/.?~\\\\]', text))
     if symbol_count >= 5:
         score += 2
-
     if re.match(r'^[ぁ-んー\s]+$', text) and len(text) >= 10:
         score += 1
-
     if score >= 4:
         return 5
     elif score == 3:
@@ -139,14 +139,11 @@ def evaluate_weirdness(text):
         return 3
     elif score == 1:
         return 2 if random.random() < 0.4 else 1
-
     if len(text) > 30 and text.count('\n') >= 2 and random.random() < 0.1:
         return 1
-
     return 0
 
-
-# --- Web サーバー ＆ API 処理 ---
+# --- Web サーバー ＆ リアルタイムAPI ---
 async def handle_index(request):
     try:
         if os.path.exists("index.html"):
@@ -165,10 +162,27 @@ async def handle_index(request):
         return web.Response(text=f"HTMLエラー: {e}", status=500)
 
 async def get_status_api(request):
+    uptime_seconds = int(time.time() - start_time)
+    hours, remainder = divmod(uptime_seconds, 3600)
+    minutes, _ = divmod(remainder, 60)
+    uptime_str = f"{hours}時間 {minutes}分"
+
+    ping = round(bot.latency * 1000) if bot.latency else 0
+
+    try:
+        cpu_usage = psutil.cpu_percent(interval=None)
+    except Exception:
+        cpu_usage = 0
+
     status_data = {
         "online": bot.is_ready(),
         "bot_name": bot.user.name if bot.user else "Unknown",
-        "guilds_count": len(bot.guilds)
+        "guilds_count": len(bot.guilds),
+        "uptime": uptime_str,
+        "ping": f"{ping} ms",
+        "meigen_count": f"{len(meigen_list)} 件",
+        "ng_count": f"{ng_count} 件",
+        "cpu": cpu_usage
     }
     return web.json_response(status_data, headers={"Access-Control-Allow-Origin": "*"})
 
@@ -194,18 +208,17 @@ async def on_ready():
     except Exception as e:
         print(f"❌ コマンド同期エラー: {e}")
 
-# --- メッセージイベント（検知・レベリング・クラウド保存） ---
 @bot.event
 async def on_message(message):
+    global ng_count
     if message.author.bot or not message.guild:
         return
 
-    # A. NGワード判定
     for word in NG_WORDS:
         if word in message.content:
+            ng_count += 1
             await message.delete()
             await message.channel.send(f"⚠️ {message.author.mention} 警告: 不適切な言葉が含まれていたため削除しました。", delete_after=5)
-            
             sec_channel = bot.get_channel(log_channels["security"])
             if sec_channel:
                 embed = discord.Embed(title="🚨 NGワード検知", color=0xFF0000)
@@ -214,13 +227,11 @@ async def on_message(message):
                 await sec_channel.send(embed=embed)
             return
 
-    # B. 迷言の自動判別＆追加
     weird_level = evaluate_weirdness(message.content)
     if weird_level > 0:
         if message.content not in meigen_list:
             meigen_list.append(message.content)
-            save_cloud_data()  # ☁️ クラウドに保存
-            
+            save_cloud_data()
             meigen_ch = bot.get_channel(log_channels["meigen"])
             if meigen_ch:
                 stars = "⭐" * weird_level
@@ -233,24 +244,19 @@ async def on_message(message):
                 embed.add_field(name="おかしさ度", value=f"{stars} ({weird_level}/5)", inline=True)
                 await meigen_ch.send(embed=embed)
 
-    # C. レベリング
     user_id = message.author.id
     now = datetime.datetime.now()
-    
     if user_id not in user_message_time or (now - user_message_time[user_id]).total_seconds() >= 60:
         user_message_time[user_id] = now
-        
         if len(message.content) >= 3:
             gained_xp = random.randint(15, 25)
             old_xp = user_xp.get(user_id, 0)
             new_xp = old_xp + gained_xp
             user_xp[user_id] = new_xp
-            
-            save_cloud_data()  # ☁️ クラウドに保存
+            save_cloud_data()
 
             old_level = get_level(old_xp)
             new_level = get_level(new_xp)
-
             if new_level > old_level:
                 lvl_channel = bot.get_channel(log_channels["level"])
                 if lvl_channel:
@@ -262,7 +268,6 @@ async def on_message(message):
 
     await bot.process_commands(message)
 
-# 一般コマンド
 @bot.tree.command(name="rank", description="自分の現在のレベルとXPを確認します")
 @app_commands.guild_only()
 async def slash_rank(interaction: discord.Interaction):
@@ -281,16 +286,14 @@ async def slash_meigen(interaction: discord.Interaction):
         embed = discord.Embed(title="💬 本日の迷言ピックアップ", description=f"「 {selected} 」", color=0x9B59B6)
         await interaction.response.send_message(embed=embed)
 
-# 管理者用リセットコマンド
 @bot.tree.command(name="level_reset_all", description="【管理者専用】全員のレベル・XPを一括リセットします")
 @app_commands.guild_only()
 @app_commands.checks.has_permissions(administrator=True)
 async def slash_level_reset_all(interaction: discord.Interaction):
     user_xp.clear()
-    save_cloud_data()  # ☁️ リセット内容を保存
+    save_cloud_data()
     await interaction.response.send_message("🚨 **全員のレベルおよびXPデータを全消去（リセット）しました。**")
 
-# メイン起動処理
 async def main():
     await start_web_server()
     if BOT_TOKEN:
