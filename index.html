@@ -53,7 +53,7 @@
 
         .container {
             width: 100%;
-            max-width: 520px;
+            max-width: 800px;
         }
 
         .header {
@@ -141,24 +141,16 @@
             gap: 10px;
         }
 
-        /* グラフ用レイアウト（モバイルでも強制横2列） */
+        /* 画面幅に応じたグラフのレイアウト変更（スマホは縦1列、PCなど広い画面では横2列） */
         .dashboard-grid {
             display: grid;
-            grid-template-columns: repeat(2, 1fr);
-            gap: 10px;
+            grid-template-columns: 1fr;
+            gap: 12px;
         }
 
-        @media (max-width: 768px) {
+        @media (min-width: 768px) {
             .dashboard-grid {
-                grid-template-columns: repeat(2, 1fr);
-                gap: 8px;
-            }
-            .dashboard-grid .card {
-                padding: 10px;
-            }
-            .dashboard-grid .card-title {
-                font-size: 0.75rem;
-                margin-bottom: 8px;
+                grid-template-columns: 1fr 1fr;
             }
         }
 
@@ -278,7 +270,7 @@
             </div>
         </div>
 
-        <!-- グラフエリア（モバイルでも横2列） -->
+        <!-- グラフエリア（レスポンシブ対応：スマホは縦1列、PCは横2列） -->
         <div class="dashboard-grid">
             <div class="card">
                 <div class="card-title">📈 CPU使用率</div>
@@ -288,7 +280,7 @@
                 <div class="card-title">📈 メモリ使用率</div>
                 <canvas id="memory-chart"></canvas>
             </div>
-            <div class="card" style="grid-column: span 2;">
+            <div class="card" style="grid-column: 1 / -1;">
                 <div class="card-title">📈 応答時間</div>
                 <canvas id="response-time-chart"></canvas>
             </div>
@@ -327,6 +319,28 @@
     <!-- ⚙️ 設定 タブ -->
     <div id="tab-settings" class="page-section">
         <form id="setting-form">
+            <!-- 🌙 サイレントモード設定の復元 -->
+            <div class="card">
+                <div class="card-title">🌙 サイレントモード（通知オフ時間帯）</div>
+                <div class="form-group">
+                    <label>モード選択</label>
+                    <select id="silent-mode">
+                        <option value="none">無効</option>
+                        <option value="all">すべての通知を停止</option>
+                    </select>
+                </div>
+                <div class="grid-2">
+                    <div class="form-group">
+                        <label>開始時刻</label>
+                        <input type="time" id="silent-start" value="22:00">
+                    </div>
+                    <div class="form-group">
+                        <label>終了時刻</label>
+                        <input type="time" id="silent-end" value="07:00">
+                    </div>
+                </div>
+            </div>
+
             <!-- 送信チャンネル設定 -->
             <div class="card">
                 <div class="card-title">📫 機能＆送信チャンネル設定</div>
@@ -479,7 +493,6 @@
         }
     });
 
-    // 更新時間・過去記録の連動処理プレースホルダー
     let updateTimer;
     function changeUpdateInterval() {
         const interval = parseInt(document.getElementById('update-interval').value);
@@ -489,7 +502,6 @@
 
     function changeHistoryRange() {
         const range = document.getElementById('history-range').value;
-        // 過去の記録レンジ変更時の処理をここに記述
         console.log("過去の記録範囲が変更されました:", range);
     }
 
@@ -504,7 +516,7 @@
                 document.getElementById('stat-meigen').innerText = data.meigen_count;
             }
         } catch (e) {
-            // オフライン環境やAPI未接続時でもダッシュボードが崩れないように静かに処理
+            // オフライン時など
         }
     }
 
@@ -539,6 +551,10 @@
             const res = await fetch('/api/settings');
             if (res.ok) {
                 const data = await res.json();
+                if (data.silent_mode) document.getElementById('silent-mode').value = data.silent_mode;
+                if (data.silent_start) document.getElementById('silent-start').value = data.silent_start;
+                if (data.silent_end) document.getElementById('silent-end').value = data.silent_end;
+
                 if (data.welcome_msg) document.getElementById('welcome-msg').value = data.welcome_msg;
                 if (data.welcome_ch) document.getElementById('welcome-ch').value = data.welcome_ch;
                 if (data.level_ch) document.getElementById('level-ch').value = data.level_ch;
@@ -563,6 +579,9 @@
 
     document.getElementById('save-settings').addEventListener('click', async () => {
         const payload = {
+            silent_mode: document.getElementById('silent-mode').value,
+            silent_start: document.getElementById('silent-start').value,
+            silent_end: document.getElementById('silent-end').value,
             welcome_msg: document.getElementById('welcome-msg').value,
             welcome_ch: document.getElementById('welcome-ch').value,
             level_ch: document.getElementById('level-ch').value,
@@ -589,7 +608,7 @@
             });
 
             if (res.ok) {
-                alert('✅ すべての拡張設定を保存・反映しました！');
+                alert('✅ すべての設定を保存・反映しました！');
             } else {
                 alert('❌ 設定の保存に失敗しました。');
             }
