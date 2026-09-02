@@ -236,6 +236,7 @@
         <button class="tab-btn" onclick="switchTab('logs')">📜 実行履歴</button>
     </div>
 
+    <!-- 👤 個人設定 (テーマ & OS連動) -->
     <div class="card">
         <div class="card-title">👤 個人設定 (表示スタイル)</div>
         <div class="setting-row">
@@ -252,16 +253,20 @@
         </div>
     </div>
 
+    <!-- 共通：サーバー選択 -->
     <div class="card">
         <div class="card-title">🌐 管理するサーバーを選択</div>
         <select id="server-select">
-            </select>
+            <!-- SERVER_OPTIONS -->
+        </select>
         <div class="status-badge">
             🟢 Botオンライン (HER Group Protector BOT)
         </div>
     </div>
 
+    <!-- 🏠 ホーム タブ -->
     <div id="tab-home" class="page-section active">
+        <!-- ⚙️ 設定メニュー -->
         <div class="card">
             <div class="card-title">⚙️ 設定メニュー</div>
             <div class="menu-item" onclick="switchTab('settings')">
@@ -273,6 +278,7 @@
             </div>
         </div>
 
+        <!-- 📊 システム稼働状況 -->
         <div class="card">
             <div class="card-title">📊 システム稼働状況</div>
             <div class="grid-2">
@@ -306,6 +312,7 @@
         </div>
     </div>
 
+    <!-- ⚙️ 設定 タブ -->
     <div id="tab-settings" class="page-section">
         <div class="card">
             <div class="card-title">📫 ようこそメッセージ & ログ設定</div>
@@ -350,6 +357,7 @@
         </div>
     </div>
 
+    <!-- 📜 実行履歴 タブ -->
     <div id="tab-logs" class="page-section">
         <div class="card">
             <div class="card-title">📜 実行履歴</div>

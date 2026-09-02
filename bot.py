@@ -161,10 +161,19 @@ async def handle_index(request):
             if not guilds_options:
                 guilds_options = '<option value="">参加中のサーバーがありません</option>'
 
-            html_content = html_content.replace('', guilds_options)
-            return web.Response(text=html_content, content_type='text/html')
+            html_content = html_content.replace('<!-- SERVER_OPTIONS -->', guilds_options)
+            
+            # Content-Type ヘッダーを直接指定してHTMLとしてレンダリングさせる
+            return web.Response(
+                body=html_content.encode('utf-8'),
+                headers={'Content-Type': 'text/html; charset=utf-8'}
+            )
         else:
-            return web.Response(text="<h1>HER Group Protector</h1><p>index.html が見つかりません。</p>", content_type='text/html')
+            return web.Response(
+                body="<h1>HER Group Protector</h1><p>index.html が見つかりません。</p>".encode('utf-8'),
+                headers={'Content-Type': 'text/html; charset=utf-8'},
+                status=404
+            )
     except Exception as e:
         return web.Response(text=f"HTMLエラー: {e}", status=500)
 
