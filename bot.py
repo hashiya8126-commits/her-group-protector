@@ -4,6 +4,7 @@ import os
 import random
 import datetime
 import asyncio
+import re
 
 # --- [1. iOS / a-Shell 用のエラー回避設定] ---
 mock_audioop = types.ModuleType("audioop")
@@ -19,9 +20,9 @@ from aiohttp import web
 # ⚙️ 初期設定
 # =========================================================
 
-BOT_TOKEN = os.getenv("DISCORD_TOKEN", "")
+BOT_TOKEN = os.getenv("BOT_TOKEN", os.getenv("DISCORD_TOKEN", ""))
 
-# ログ用・通知用チャンネルID（コマンドで動的に変更可能）
+# ログ用・通知用チャンネルID
 log_channels = {
     "audit": 1436724897681510430,      # 編集・削除ログ
     "join": 1436724863640273078,       # 入退出ログ
@@ -34,19 +35,17 @@ log_channels = {
 # 動的データ
 NG_WORDS = ["スパムテスト", "荒らし", "ngword"]
 meigen_list = []  # 迷言データベース
-MEIGEN_EMOJIS = ["📌", "🤣", "💀", "草"]  # 迷言判定に使う絵文字リスト
 
 intents = discord.Intents.default()
 intents.message_content = True
 intents.members = True
-intents.reactions = True
 
 bot = commands.Bot(command_prefix="!", intents=intents)
 
 user_xp = {}
 user_message_time = {}
 
-# --- 高難易度版：レベル計算式 ---
+# --- レベル計算式 ---
 def get_level(xp):
     level = 0
     while xp >= 100 * ((level + 1) ** 2):
@@ -56,36 +55,101 @@ def get_level(xp):
 def get_next_level_xp(level):
     return 100 * ((level + 1) ** 2)
 
+
+# --- 🤪 意味のわからない文章（深夜テンション・シュール構文）の自動判定 ---
+def evaluate_weirdness(text):
+    if len(text) < 4:
+        return 0
+
+    score = 0
+    
+    # 1. 前半と後半の飛躍・ミスマッチ（「問一：〜を求めよ」「〜とする」「ただし〜」など問題文風の文体）
+    if re.search(r'(問[1-9一二三]|求めなさい|求めよ|ただし|とする[。 \n]|答えよ)', text):
+        score += 2
+
+    # 2. 脈絡のない専門用語・難解表現（数学、国語問題、物理、哲学風などのミックス）
+    keywords = ['速度', '質量', '気体', '定数', '電離', '因果', '文脈', '筆者', '傍線部', '矛盾', '極限', '証明']
+    kw_count = sum(1 for kw in keywords if kw in text)
+    if kw_count >= 2:
+        score += 2
+    elif kw_count == 1:
+        score += 1
+
+    # 3. 感情・状況の急展開（日常系からの不条理な展開）
+    if re.search(r'(言いました|思った|突然|突如|こう言った|なぜなら|結果|しかし)', text) and len(text) > 20:
+        score += 1
+
+    # 4. 短文の深夜テンション（文字の連続、カオスな記号乱用）
+    if re.search(r'(.)\1{3,}', text):
+        score += 2
+    
+    symbol_count = len(re.findall(r'[!?！？w草#$%\^&\*()_\-+=\[\]{};:\'",<>\/.?~\\\\]', text))
+    if symbol_count >= 5:
+        score += 2
+
+    # 5. ひらがな多め・文章のアンバランスさ（物語調・つぶやき風のシュールさ）
+    if re.match(r'^[ぁ-んー\s]+$', text) and len(text) >= 10:
+        score += 1
+
+    # --- スコアを ★1〜5 の評価に変換 ---
+    if score >= 4:
+        return 5
+    elif score == 3:
+        return 4
+    elif score == 2:
+        return 3
+    elif score == 1:
+        return 2 if random.random() < 0.4 else 1
+
+    if len(text) > 30 and text.count('\n') >= 2 and random.random() < 0.1:
+        return 1
+
+    return 0
+
+
 # --- Web サーバー ＆ API 処理 ---
 async def handle_index(request):
     try:
-        with open("index.html", "r", encoding="utf-8") as f:
-            html_content = f.read()
-            
-        guilds_options = "".join([f'<option value="{g.id}">🟢 {g.name}</option>\n' for g in bot.guilds])
-        if not guilds_options:
-            guilds_options = '<option value="">参加中のサーバーがありません</option>'
+        if os.path.exists("index.html"):
+            with open("index.html", "r", encoding="utf-8") as f:
+                html_content = f.read()
+                
+            guilds_options = "".join([f'<option value="{g.id}">🟢 {g.name}</option>\n' for g in bot.guilds])
+            if not guilds_options:
+                guilds_options = '<option value="">参加中のサーバーがありません</option>'
 
-        html_content = html_content.replace('<!-- SERVER_OPTIONS -->', guilds_options)
-        return web.Response(text=html_content, content_type='text/html')
+            html_content = html_content.replace('<!-- SERVER_OPTIONS -->', guilds_options)
+            return web.Response(text=html_content, content_type='text/html')
+        else:
+            return web.Response(text="<h1>HER Group Protector</h1><p>index.html が見つかりません。</p>", content_type='text/html')
     except Exception as e:
         return web.Response(text=f"HTMLエラー: {e}", status=500)
+
+async def get_status_api(request):
+    status_data = {
+        "online": bot.is_ready(),
+        "bot_name": bot.user.name if bot.user else "Unknown",
+        "guilds_count": len(bot.guilds)
+    }
+    return web.json_response(status_data, headers={"Access-Control-Allow-Origin": "*"})
 
 async def get_guilds_api(request):
     guilds_data = [{"id": str(g.id), "name": g.name, "icon": str(g.icon.url) if g.icon else None} for g in bot.guilds]
     return web.json_response(guilds_data, headers={"Access-Control-Allow-Origin": "*"})
 
 async def start_web_server():
-    port = int(os.getenv("PORT", 8080))
+    port = int(os.getenv("PORT", 10000))
     app = web.Application()
     app.router.add_get('/', handle_index)
     app.router.add_get('/index.html', handle_index)
+    app.router.add_get('/api/status', get_status_api)
     app.router.add_get('/api/guilds', get_guilds_api)
     
     runner = web.AppRunner(app)
     await runner.setup()
     site = web.TCPSite(runner, '0.0.0.0', port)
     await site.start()
+    print(f"🌐 Webサーバーがポート {port} で起動しました！")
 
 @bot.event
 async def on_ready():
@@ -95,35 +159,42 @@ async def on_ready():
         print(f"✅ {len(synced)} 個のスラッシュコマンドを同期しました！")
     except Exception as e:
         print(f"❌ コマンド同期エラー: {e}")
-        
-    bot.loop.create_task(start_web_server())
 
-# --- 📌 リアクション追加時の処理 ---
+# --- 📝 メッセージ編集ログ ---
 @bot.event
-async def on_raw_reaction_add(payload):
-    if not payload.guild_id:  # DM無視
+async def on_message_edit(before, after):
+    if before.author.bot or not before.guild:
         return
-    if str(payload.emoji) in MEIGEN_EMOJIS:
-        channel = bot.get_channel(payload.channel_id)
-        if not channel:
-            return
-        try:
-            message = await channel.fetch_message(payload.message_id)
-            if message.content and message.content not in meigen_list:
-                meigen_list.append(message.content)
-                await channel.send(f"💬 {message.author.mention} の発言を迷言集に登録しました！", delete_after=5)
-                
-                meigen_ch = bot.get_channel(log_channels["meigen"])
-                if meigen_ch:
-                    embed = discord.Embed(title="💬 新しい迷言が追加されました", description=f"「 {message.content} 」\n— {message.author.mention}", color=0x9B59B6)
-                    await meigen_ch.send(embed=embed)
-        except Exception as e:
-            print(f"迷言追加エラー: {e}")
+    if before.content == after.content:
+        return
 
-# --- メッセージ検知・NGワード・レベリング ---
+    audit_ch = bot.get_channel(log_channels["audit"])
+    if audit_ch:
+        embed = discord.Embed(title="✏️ メッセージ編集", color=0xF1C40F, timestamp=datetime.datetime.now(datetime.timezone.utc))
+        embed.add_field(name="実行者", value=before.author.mention, inline=True)
+        embed.add_field(name="チャンネル", value=before.channel.mention, inline=True)
+        embed.add_field(name="変更前", value=before.content or "(本文なし/添付のみ)", inline=False)
+        embed.add_field(name="変更後", value=after.content or "(本文なし/添付のみ)", inline=False)
+        await audit_ch.send(embed=embed)
+
+# --- 🗑️ メッセージ削除ログ ---
+@bot.event
+async def on_message_delete(message):
+    if message.author.bot or not message.guild:
+        return
+
+    audit_ch = bot.get_channel(log_channels["audit"])
+    if audit_ch:
+        embed = discord.Embed(title="🗑️ メッセージ削除", color=0xE74C3C, timestamp=datetime.datetime.now(datetime.timezone.utc))
+        embed.add_field(name="送信者", value=message.author.mention, inline=True)
+        embed.add_field(name="チャンネル", value=message.channel.mention, inline=True)
+        embed.add_field(name="削除された内容", value=message.content or "(削除されました / 添付ファイルのみ)", inline=False)
+        await audit_ch.send(embed=embed)
+
+# --- メッセージ検知・NGワード・自動迷言ピックアップ・レベリング ---
 @bot.event
 async def on_message(message):
-    if message.author.bot or not message.guild:  # BotとDMを無視
+    if message.author.bot or not message.guild:
         return
 
     # A. NGワード判定
@@ -140,7 +211,25 @@ async def on_message(message):
                 await sec_channel.send(embed=embed)
             return
 
-    # B. レベリング
+    # B. 迷言の自動判別＆自動ピックアップ
+    weird_level = evaluate_weirdness(message.content)
+    if weird_level > 0:
+        if message.content not in meigen_list:
+            meigen_list.append(message.content)
+            
+            meigen_ch = bot.get_channel(log_channels["meigen"])
+            if meigen_ch:
+                stars = "⭐" * weird_level
+                embed = discord.Embed(
+                    title="🤪 迷言を自動検知しました",
+                    description=f"「 {message.content} 」",
+                    color=0x9B59B6
+                )
+                embed.add_field(name="発言者", value=message.author.mention, inline=True)
+                embed.add_field(name="おかしさ度", value=f"{stars} ({weird_level}/5)", inline=True)
+                await meigen_ch.send(embed=embed)
+
+    # C. レベリング
     user_id = message.author.id
     now = datetime.datetime.now()
     
@@ -167,7 +256,7 @@ async def on_message(message):
 
     await bot.process_commands(message)
 
-# 権限エラーハンドラ（スラッシュコマンド用）
+# 権限エラーハンドラ
 @bot.tree.error
 async def on_app_command_error(interaction: discord.Interaction, error: app_commands.AppCommandError):
     if isinstance(error, app_commands.MissingPermissions):
@@ -175,19 +264,16 @@ async def on_app_command_error(interaction: discord.Interaction, error: app_comm
     else:
         await interaction.response.send_message("❌ エラーが発生しました。", ephemeral=True)
 
-# 権限エラーハンドラ（!コマンド用）
 @bot.event
 async def on_command_error(ctx, error):
     if isinstance(error, commands.MissingPermissions):
         await ctx.send("❌ このコマンドを実行するには**管理者権限**が必要です。")
-    elif isinstance(error, commands.NoPrivateMessage):
-        await ctx.send("❌ このコマンドはDMでは使用できません。")
 
 # =========================================================
-# 👤 一般ユーザー用コマンド（自分の情報・閲覧）
+# 👤 一般ユーザー用コマンド
 # =========================================================
 
-# 1. 自分のランク・XP確認
+# ランク確認
 @bot.tree.command(name="rank", description="自分の現在のレベルとXPを確認します")
 @app_commands.guild_only()
 async def slash_rank(interaction: discord.Interaction):
@@ -204,7 +290,7 @@ async def prefix_rank(ctx):
     next_xp = get_next_level_xp(lvl)
     await ctx.send(f"📊 {ctx.author.mention} のステータス:\n・**Level**: {lvl}\n・**Total XP**: {xp}\n・**次のレベルまで**: あと `{next_xp - xp}` XP")
 
-# 2. 迷言ピックアップ
+# 迷言閲覧
 @bot.tree.command(name="meigen", description="迷言集からランダムで1つ表示します")
 @app_commands.guild_only()
 async def slash_meigen(interaction: discord.Interaction):
@@ -225,17 +311,7 @@ async def prefix_meigen(ctx):
         embed = discord.Embed(title="💬 本日の迷言ピックアップ", description=f"「 {selected} 」", color=0x9B59B6)
         await ctx.send(embed=embed)
 
-# 3. 各種リスト確認
-@bot.tree.command(name="emoji_list", description="迷言判定用の絵文字一覧を表示します")
-@app_commands.guild_only()
-async def slash_emoji_list(interaction: discord.Interaction):
-    await interaction.response.send_message(f"😀 現在の迷言判定用絵文字: {' '.join(MEIGEN_EMOJIS)}")
-
-@bot.command(name="emoji_list")
-@commands.guild_only()
-async def prefix_emoji_list(ctx):
-    await ctx.send(f"😀 現在の迷言判定用絵文字: {' '.join(MEIGEN_EMOJIS)}")
-
+# NGワードリスト閲覧
 @bot.tree.command(name="ng_list", description="NGワードの一覧を表示します")
 @app_commands.guild_only()
 async def slash_ng_list(interaction: discord.Interaction):
@@ -248,105 +324,40 @@ async def prefix_ng_list(ctx):
 
 
 # =========================================================
-# 👑 管理者限定コマンド（Administrator必須）
+# 👑 管理者限定コマンド
 # =========================================================
 
-# 1. 迷言の手動追加
-@bot.tree.command(name="meigen_add", description="【管理者専用】文章を指定して迷言集に追加します")
+# 全員のレベル一括リセット（管理者専用）
+@bot.tree.command(name="level_reset_all", description="【管理者専用】全員のレベル・XPを一括で0にリセットします")
 @app_commands.guild_only()
 @app_commands.checks.has_permissions(administrator=True)
-async def slash_meigen_add(interaction: discord.Interaction, text: str):
-    if text not in meigen_list:
-        meigen_list.append(text)
-        await interaction.response.send_message(f"✅ 「{text}」 を迷言集に追加しました！")
-    else:
-        await interaction.response.send_message("⚠️ 既に登録されています。", ephemeral=True)
+async def slash_level_reset_all(interaction: discord.Interaction):
+    user_xp.clear()
+    await interaction.response.send_message("🚨 **全員のレベルおよびXPデータを全消去（リセット）しました。**")
 
-@bot.command(name="meigen_add")
+@bot.command(name="level_reset_all")
 @commands.guild_only()
 @commands.has_permissions(administrator=True)
-async def prefix_meigen_add(ctx):
-    if ctx.message.reference:
-        ref_msg = await ctx.channel.fetch_message(ctx.message.reference.message_id)
-        if ref_msg.content and ref_msg.content not in meigen_list:
-            meigen_list.append(ref_msg.content)
-            await ctx.send(f"✅ 「{ref_msg.content}」 を迷言集に追加しました！")
-        else:
-            await ctx.send("⚠️ 既に登録されているか、本文が空です。")
-    else:
-        await ctx.send("⚠️ 迷言にしたいメッセージに返信（リプライ）しながら `!meigen_add` と入力してください！")
+async def prefix_level_reset_all(ctx):
+    user_xp.clear()
+    await ctx.send("🚨 **全員のレベルおよびXPデータを全消去（リセット）しました。**")
 
-# 2. 絵文字管理
-@bot.tree.command(name="emoji_add", description="【管理者専用】迷言判定用絵文字を追加します")
+# 単体レベルリセット（管理者専用）
+@bot.tree.command(name="level_reset", description="【管理者専用】指定ユーザーのレベルをリセットします")
 @app_commands.guild_only()
 @app_commands.checks.has_permissions(administrator=True)
-async def slash_emoji_add(interaction: discord.Interaction, emoji: str):
-    if emoji not in MEIGEN_EMOJIS:
-        MEIGEN_EMOJIS.append(emoji)
-        await interaction.response.send_message(f"✅ 絵文字 「{emoji}」 を追加しました。")
-    else:
-        await interaction.response.send_message("⚠️ 既に登録されています。", ephemeral=True)
+async def slash_level_reset(interaction: discord.Interaction, member: discord.Member):
+    user_xp[member.id] = 0
+    await interaction.response.send_message(f"🔄 {member.mention} のXPをリセットしました。")
 
-@bot.command(name="emoji_add")
+@bot.command(name="level_reset")
 @commands.guild_only()
 @commands.has_permissions(administrator=True)
-async def prefix_emoji_add(ctx, emoji: str):
-    if emoji not in MEIGEN_EMOJIS:
-        MEIGEN_EMOJIS.append(emoji)
-        await ctx.send(f"✅ 絵文字 「{emoji}」 を追加しました。")
+async def prefix_level_reset(ctx, member: discord.Member):
+    user_xp[member.id] = 0
+    await ctx.send(f"🔄 {member.mention} のXPをリセットしました。")
 
-@bot.tree.command(name="emoji_del", description="【管理者専用】迷言判定用絵文字を削除します")
-@app_commands.guild_only()
-@app_commands.checks.has_permissions(administrator=True)
-async def slash_emoji_del(interaction: discord.Interaction, emoji: str):
-    if emoji in MEIGEN_EMOJIS:
-        MEIGEN_EMOJIS.remove(emoji)
-        await interaction.response.send_message(f"🗑️ 絵文字 「{emoji}」 を削除しました。")
-    else:
-        await interaction.response.send_message("⚠️ リストにありません。", ephemeral=True)
-
-@bot.command(name="emoji_del")
-@commands.guild_only()
-@commands.has_permissions(administrator=True)
-async def prefix_emoji_del(ctx, emoji: str):
-    if emoji in MEIGEN_EMOJIS:
-        MEIGEN_EMOJIS.remove(emoji)
-        await ctx.send(f"🗑️ 絵文字 「{emoji}」 を削除しました。")
-
-# 3. NGワード管理
-@bot.tree.command(name="ng_add", description="【管理者専用】NGワードを追加します")
-@app_commands.guild_only()
-@app_commands.checks.has_permissions(administrator=True)
-async def slash_ng_add(interaction: discord.Interaction, word: str):
-    if word not in NG_WORDS:
-        NG_WORDS.append(word)
-        await interaction.response.send_message(f"✅ NGワードに「**{word}**」を追加しました。")
-
-@bot.command(name="ng_add")
-@commands.guild_only()
-@commands.has_permissions(administrator=True)
-async def prefix_ng_add(ctx, *, word: str):
-    if word not in NG_WORDS:
-        NG_WORDS.append(word)
-        await ctx.send(f"✅ NGワードに「**{word}**」を追加しました。")
-
-@bot.tree.command(name="ng_del", description="【管理者専用】NGワードを削除します")
-@app_commands.guild_only()
-@app_commands.checks.has_permissions(administrator=True)
-async def slash_ng_del(interaction: discord.Interaction, word: str):
-    if word in NG_WORDS:
-        NG_WORDS.remove(word)
-        await interaction.response.send_message(f"🗑️ NGワード「**{word}**」を削除しました。")
-
-@bot.command(name="ng_del")
-@commands.guild_only()
-@commands.has_permissions(administrator=True)
-async def prefix_ng_del(ctx, *, word: str):
-    if word in NG_WORDS:
-        NG_WORDS.remove(word)
-        await ctx.send(f"🗑️ NGワード「**{word}**」を削除しました。")
-
-# 4. チャンネル設定
+# チャンネル設定（管理者専用）
 @bot.tree.command(name="set_channel", description="【管理者専用】通知用チャンネルを設定します")
 @app_commands.guild_only()
 @app_commands.checks.has_permissions(administrator=True)
@@ -365,19 +376,14 @@ async def prefix_set_channel(ctx, channel_type: str):
         log_channels[channel_type] = ctx.channel.id
         await ctx.send(f"⚙️ **{channel_type}** 用チャンネルを {ctx.channel.mention} に設定しました！")
 
-# 5. レベルリセット
-@bot.tree.command(name="level_reset", description="【管理者専用】指定ユーザーのレベルをリセットします")
-@app_commands.guild_only()
-@app_commands.checks.has_permissions(administrator=True)
-async def slash_level_reset(interaction: discord.Interaction, member: discord.Member):
-    user_xp[member.id] = 0
-    await interaction.response.send_message(f"🔄 {member.mention} のXPをリセットしました。")
 
-@bot.command(name="level_reset")
-@commands.guild_only()
-@commands.has_permissions(administrator=True)
-async def prefix_level_reset(ctx, member: discord.Member):
-    user_xp[member.id] = 0
-    await ctx.send(f"🔄 {member.mention} のXPをリセットしました。")
+# メイン起動処理
+async def main():
+    await start_web_server()
+    if BOT_TOKEN:
+        await bot.start(BOT_TOKEN)
+    else:
+        print("⚠️ エラー: BOT_TOKEN が設定されていません。")
 
-bot.run(BOT_TOKEN)
+if __name__ == "__main__":
+    asyncio.run(main())

@@ -1,47 +1,222 @@
-# --- Web サーバー ＆ API 処理（ダッシュボード完全対応版） ---
-async def handle_index(request):
-    try:
-        if os.path.exists("index.html"):
-            with open("index.html", "r", encoding="utf-8") as f:
-                html_content = f.read()
-                
-            guilds_options = "".join([f'<option value="{g.id}">🟢 {g.name}</option>\n' for g in bot.guilds])
-            if not guilds_options:
-                guilds_options = '<option value="">参加中のサーバーがありません</option>'
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HER Group Protector</title>
+    <style>
+        :root {
+            --bg-color: #0f111a;
+            --card-bg: #1a1d2d;
+            --accent-color: #5865f2;
+            --text-color: #ffffff;
+            --text-sub: #949ba4;
+            --online-color: #23a55a;
+            --offline-color: #f23f43;
+            --border-color: #2b2d42;
+        }
 
-            html_content = html_content.replace('<!-- SERVER_OPTIONS -->', guilds_options)
-            return web.Response(text=html_content, content_type='text/html')
-        else:
-            return web.Response(text="<h1>HER Group Protector</h1><p>index.html が見つかりません。</p>", content_type='text/html')
-    except Exception as e:
-        return web.Response(text=f"HTMLエラー: {e}", status=500)
+        body {
+            font-family: 'Helvetica Neue', Arial, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            box-sizing: border-box;
+        }
 
-# ステータス確認用API（フロントエンドの「Botオフライン」判定を解消するAPI）
-async def get_status_api(request):
-    status_data = {
-        "online": bot.is_ready(),
-        "bot_name": bot.user.name if bot.user else "Unknown",
-        "guilds_count": len(bot.guilds)
+        .container {
+            width: 100%;
+            max-width: 480px;
+            background-color: var(--card-bg);
+            border-radius: 16px;
+            padding: 24px;
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+            border: 1px solid var(--border-color);
+        }
+
+        .header {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            font-size: 1.25rem;
+            font-weight: bold;
+            color: #7289da;
+            margin-bottom: 24px;
+        }
+
+        .section-box {
+            background-color: rgba(0, 0, 0, 0.2);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 16px;
+            margin-bottom: 20px;
+        }
+
+        .section-title {
+            font-size: 0.95rem;
+            font-weight: bold;
+            margin-bottom: 12px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        select {
+            width: 100%;
+            padding: 12px;
+            border-radius: 8px;
+            background-color: #111214;
+            color: var(--text-color);
+            border: 1px solid var(--border-color);
+            font-size: 0.95rem;
+            outline: none;
+            box-sizing: border-box;
+            margin-bottom: 12px;
+        }
+
+        .status-badge {
+            padding: 10px 14px;
+            border-radius: 8px;
+            font-size: 0.85rem;
+            font-weight: bold;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            transition: all 0.3s ease;
+        }
+
+        .status-badge.online {
+            background-color: rgba(35, 165, 90, 0.15);
+            color: #57f287;
+            border: 1px solid rgba(35, 165, 90, 0.4);
+        }
+
+        .status-badge.offline {
+            background-color: rgba(242, 63, 67, 0.15);
+            color: #ed4245;
+            border: 1px solid rgba(242, 63, 67, 0.4);
+        }
+
+        .menu-card {
+            background-color: rgba(0, 0, 0, 0.2);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 16px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            cursor: pointer;
+            transition: background-color 0.2s ease;
+        }
+
+        .menu-card:hover {
+            background-color: rgba(255, 255, 255, 0.05);
+        }
+
+        .menu-info h3 {
+            margin: 0 0 6px 0;
+            font-size: 1rem;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .menu-info p {
+            margin: 0;
+            font-size: 0.8rem;
+            color: var(--text-sub);
+        }
+
+        .arrow {
+            color: #7289da;
+            font-size: 1.2rem;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <div class="header">
+        🛡️ HER Group Protector
+    </div>
+
+    <div class="section-box">
+        <div class="section-title">
+            🌐 管理するサーバーを選択
+        </div>
+        
+        <select id="guild-select">
+            <option value="">読み込み中...</option>
+        </select>
+
+        <div id="status-badge" class="status-badge offline">
+            🔴 接続確認中...
+        </div>
+    </div>
+
+    <div class="section-title" style="margin-top: 24px; margin-bottom: 12px; color: var(--text-sub); font-size: 0.85rem;">
+        ⚙️ 設定メニュー
+    </div>
+
+    <div class="menu-card">
+        <div class="menu-info">
+            <h3>📬 ようこそメッセージ & ログ設定</h3>
+            <p>新規参加者の歓迎カードや各種ログチャンネルの設定</p>
+        </div>
+        <div class="arrow">➔</div>
+    </div>
+</div>
+
+<script>
+    // Botのステータスとサーバー一覧をAPIから取得して表示を更新する
+    async function updateDashboard() {
+        const statusBadge = document.getElementById('status-badge');
+        const guildSelect = document.getElementById('guild-select');
+
+        try {
+            // ステータスAPIを取得
+            const statusRes = await fetch('/api/status');
+            if (!statusRes.ok) throw new Error('API Response Error');
+            const statusData = await statusRes.json();
+
+            if (statusData.online) {
+                // オンライン時
+                statusBadge.className = 'status-badge online';
+                statusBadge.innerHTML = `🟢 Botオンライン (${statusData.bot_name})`;
+
+                // サーバー一覧APIを取得
+                const guildsRes = await fetch('/api/guilds');
+                const guildsData = await guildsRes.json();
+
+                if (guildsData.length > 0) {
+                    guildSelect.innerHTML = guildsData.map(g => 
+                        `<option value="${g.id}">🟢 ${g.name}</option>`
+                    ).join('');
+                } else {
+                    guildSelect.innerHTML = '<option value="">参加中のサーバーがありません</option>';
+                }
+            } else {
+                throw new Error('Bot is not ready');
+            }
+        } catch (error) {
+            // オフライン時またはエラー発生時
+            statusBadge.className = 'status-badge offline';
+            statusBadge.innerHTML = '🔴 Botオフライン (python bot.py を実行してください)';
+            guildSelect.innerHTML = '<option value="">Botが起動していません</option>';
+        }
     }
-    return web.json_response(status_data, headers={"Access-Control-Allow-Origin": "*"})
 
-# サーバー一覧取得用API
-async def get_guilds_api(request):
-    guilds_data = [{"id": str(g.id), "name": g.name, "icon": str(g.icon.url) if g.icon else None} for g in bot.guilds]
-    return web.json_response(guilds_data, headers={"Access-Control-Allow-Origin": "*"})
+    // ページ読み込み時に実行 ＆ 10秒ごとに自動更新
+    window.onload = () => {
+        updateDashboard();
+        setInterval(updateDashboard, 10000);
+    };
+</script>
 
-async def start_web_server():
-    port = int(os.getenv("PORT", 10000))
-    app = web.Application()
-    
-    # ルーティング設定
-    app.router.add_get('/', handle_index)
-    app.router.add_get('/index.html', handle_index)
-    app.router.add_get('/api/status', get_status_api)
-    app.router.add_get('/api/guilds', get_guilds_api)
-    
-    runner = web.AppRunner(app)
-    await runner.setup()
-    site = web.TCPSite(runner, '0.0.0.0', port)
-    await site.start()
-    print(f"🌐 Webサーバーがポート {port} で起動しました！")
+</body>
+</html>
