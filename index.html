@@ -259,12 +259,11 @@
                     </select>
                 </div>
                 <div class="form-group" style="margin-bottom: 0;">
-                    <label>過去の記録</label>
+                    <label>過去の記録（グラフ横幅）</label>
                     <select id="history-range" onchange="changeHistoryRange()">
-                        <option value="10s">10秒</option>
-                        <option value="1m">1分</option>
-                        <option value="1h">1時間</option>
-                        <option value="1d" selected>1日</option>
+                        <option value="10" selected>10個分 (10秒)</option>
+                        <option value="30">30個分 (30秒)</option>
+                        <option value="60">60個分 (1分)</option>
                     </select>
                 </div>
             </div>
@@ -462,49 +461,73 @@
         }
     }
 
-    // チャートの共通オプション（アニメーション付き）
     const commonOptions = {
         responsive: true,
         maintainAspectRatio: true,
         animation: {
-            duration: 400 // 滑らかなアニメーション時間
+            duration: 300
         },
         scales: {
             y: { beginAtZero: true, max: 100 }
         }
     };
 
-    // 初期データ（直近10秒分）
-    const initialLabels = ['-9s', '-8s', '-7s', '-6s', '-5s', '-4s', '-3s', '-2s', '-1s', '今'];
-    const initialData = [20, 22, 19, 25, 30, 28, 24, 26, 22, 25];
+    // 初期データ生成（デフォルト10個分）
+    function generateInitialData(maxCount) {
+        const labels = [];
+        const data = [];
+        for (let i = maxCount - 1; i >= 0; i--) {
+            labels.push(`-${i}s`);
+            data.push(Math.floor(Math.random() * 20) + 20);
+        }
+        return { labels, data };
+    }
+
+    let maxDataPoints = parseInt(document.getElementById('history-range').value);
+    const init = generateInitialData(maxDataPoints);
 
     const cpuChart = new Chart(document.getElementById('cpu-chart').getContext('2d'), {
         type: 'line',
-        data: { labels: [...initialLabels], datasets: [{ label: 'CPU %', data: [...initialData], borderColor: '#5865f2', tension: 0.3, fill: false }] },
+        data: { labels: [...init.labels], datasets: [{ label: 'CPU %', data: [...init.data], borderColor: '#5865f2', tension: 0.3, fill: false }] },
         options: commonOptions
     });
 
     const memoryChart = new Chart(document.getElementById('memory-chart').getContext('2d'), {
         type: 'line',
-        data: { labels: [...initialLabels], datasets: [{ label: 'Memory %', data: [...initialData], borderColor: '#2ecc71', tension: 0.3, fill: false }] },
+        data: { labels: [...init.labels], datasets: [{ label: 'Memory %', data: [...init.data], borderColor: '#2ecc71', tension: 0.3, fill: false }] },
         options: commonOptions
     });
 
     const responseTimeChart = new Chart(document.getElementById('response-time-chart').getContext('2d'), {
         type: 'line',
-        data: { labels: [...initialLabels], datasets: [{ label: 'Response (ms)', data: [110, 115, 120, 105, 125, 110, 115, 130, 115, 120], borderColor: '#e67e22', tension: 0.3, fill: false }] },
+        data: { 
+            labels: [...init.labels], 
+            datasets: [{ label: 'Response (ms)', data: init.data.map(v => v * 4), borderColor: '#e67e22', tension: 0.3, fill: false }] 
+        },
         options: {
             ...commonOptions,
             scales: { y: { beginAtZero: true, max: 500 } }
         }
     });
 
-    // リアルタイムデータ更新関数
+    // グラフの横幅（最大保持数）を変更したときの処理
+    function changeHistoryRange() {
+        maxDataPoints = parseInt(document.getElementById('history-range').value);
+        const newInit = generateInitialData(maxDataPoints);
+
+        [cpuChart, memoryChart, responseTimeChart].forEach((chart, index) => {
+            chart.data.labels = [...newInit.labels];
+            chart.data.datasets[0].data = index === 2 ? newInit.data.map(v => v * 4) : [...newInit.data];
+            chart.update();
+        });
+    }
+
     function addDataToChart(chart, label, newData) {
         chart.data.labels.push(label);
         chart.data.datasets[0].data.push(newData);
-        // データが溜まりすぎないように古いものを削除（最大10個保持）
-        if (chart.data.labels.length > 10) {
+        
+        // 選択された横幅（最大保持数）を超えたら古いものを消す
+        if (chart.data.labels.length > maxDataPoints) {
             chart.data.labels.shift();
             chart.data.datasets[0].data.shift();
         }
@@ -522,36 +545,29 @@
         startRealtimePolling();
     }
 
-    function changeHistoryRange() {
-        const range = document.getElementById('history-range').value;
-        console.log("過去の記録範囲が変更されました:", range);
-    }
-
     async function fetchAndUpdateData() {
+        const nowLabel = new Date().toLocaleTimeString();
         try {
             const res = await fetch('/api/status');
             if (res.ok) {
                 const data = await res.json();
-                
-                // 数値データの反映
                 document.getElementById('stat-uptime').innerText = data.uptime;
                 document.getElementById('stat-ping').innerText = data.ping;
                 document.getElementById('stat-ng').innerText = data.ng_count;
                 document.getElementById('stat-meigen').innerText = data.meigen_count;
 
-                // グラフへのリアルタイム追加（現在時刻のラベル）
-                const nowLabel = new Date().toLocaleTimeString();
                 addDataToChart(cpuChart, nowLabel, data.cpu);
                 addDataToChart(memoryChart, nowLabel, data.memory);
                 addDataToChart(responseTimeChart, nowLabel, data.ping_raw);
+                return;
             }
         } catch (e) {
-            // オフライン時などはランダムな揺らぎでリアルタイムデモを継続
-            const nowLabel = new Date().toLocaleTimeString();
-            addDataToChart(cpuChart, nowLabel, Math.floor(Math.random() * 30) + 10);
-            addDataToChart(memoryChart, nowLabel, Math.floor(Math.random() * 10) + 50);
-            addDataToChart(responseTimeChart, nowLabel, Math.floor(Math.random() * 50) + 100);
+            // オフライン時のデモ用フォールバック
         }
+
+        addDataToChart(cpuChart, nowLabel, Math.floor(Math.random() * 30) + 15);
+        addDataToChart(memoryChart, nowLabel, Math.floor(Math.random() * 10) + 50);
+        addDataToChart(responseTimeChart, nowLabel, Math.floor(Math.random() * 100) + 100);
     }
 
     async function loadGuildChannels() {
@@ -651,8 +667,6 @@
         }
     });
 
-    // 初期化実行
-    fetchAndUpdateData();
     startRealtimePolling();
     loadCurrentSettings();
 </script>
