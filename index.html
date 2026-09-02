@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HER Group Protector - ダッシュボード</title>
+    <style>
+        body {
+            font-family: 'Helvetica Neue', Arial, sans-serif;
+            background-color: #0f1115;
+            color: #ffffff;
+            margin: 0;
+            padding: 20px;
+        }
+        .container {
+            max-width: 600px;
+            margin: 0 auto;
+            background-color: #161921;
+            padding: 25px;
+            border-radius: 12px;
+            border: 1px solid #2d3343;
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+        }
+        h1 {
+            color: #5865F2;
+            font-size: 22px;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .server-box {
+            background-color: #1e2129;
+            padding: 15px;
+            border-radius: 8px;
+            border: 2px solid #5865F2;
+            margin-bottom: 25px;
+        }
+        label {
+            display: block;
+            font-weight: bold;
+            font-size: 14px;
+            color: #b9bbbe;
+            margin-bottom: 8px;
+        }
+        select {
+            width: 100%;
+            padding: 12px;
+            border-radius: 6px;
+            border: 1px solid #36393f;
+            background-color: #0f1115;
+            color: #fff;
+            font-size: 14px;
+            box-sizing: border-box;
+            outline: none;
+        }
+        select:focus {
+            border-color: #5865F2;
+        }
+        .status-badge {
+            display: inline-block;
+            font-size: 12px;
+            padding: 4px 8px;
+            border-radius: 4px;
+            margin-top: 8px;
+        }
+        .status-loading { background-color: #faa61a; color: #000; }
+        .status-online { background-color: #3ba55d; color: #fff; }
+        .status-offline { background-color: #ed4245; color: #fff; }
+
+        .menu-grid {
+            display: grid;
+            gap: 15px;
+            margin-top: 20px;
+        }
+        .menu-card {
+            background-color: #1e2129;
+            padding: 18px;
+            border-radius: 8px;
+            border: 1px solid #2d3343;
+            text-decoration: none;
+            color: #fff;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            transition: background 0.2s;
+        }
+        .menu-card:active {
+            background-color: #252934;
+        }
+        .menu-card h3 {
+            margin: 0 0 5px 0;
+            font-size: 16px;
+            color: #deff9a;
+        }
+        .menu-card p {
+            margin: 0;
+            font-size: 12px;
+            color: #b9bbbe;
+        }
+        .arrow {
+            font-size: 18px;
+            color: #5865F2;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>🛡️ HER Group Protector</h1>
+
+    <div class="server-box">
+        <label for="serverSelect" style="color: #fff;">🌐 管理するサーバーを選択</label>
+        <select id="serverSelect" disabled>
+            <option value="">Botとの通信を確認中...</option>
+        </select>
+        <div id="statusBadge" class="status-badge status-loading">⏳ 接続中...</div>
+    </div>
+
+    <label>⚙️ 設定メニュー</label>
+    <div class="menu-grid">
+        <a href="settings.html" class="menu-card">
+            <div>
+                <h3>📥 ようこそメッセージ ＆ ログ設定</h3>
+                <p>新規参加者の歓迎カードや各種ログチャンネルの設定</p>
+            </div>
+            <span class="arrow">➔</span>
+        </a>
+    </div>
+</div>
+
+<script>
+    // 参加サーバー一覧をBotのAPI(Port 8080)からリアルタイム取得する処理
+    async function fetchServerList() {
+        const select = document.getElementById('serverSelect');
+        const badge = document.getElementById('statusBadge');
+
+        try {
+            // バックグラウンドで起動しているBotのAPIへリクエスト
+            const response = await fetch('http://localhost:8080/api/guilds');
+            
+            if (!response.ok) {
+                throw new Error('APIレスポンスエラー');
+            }
+
+            const guilds = await response.json();
+
+            // ドロップダウンをクリア
+            select.innerHTML = '';
+
+            if (guilds.length === 0) {
+                select.innerHTML = '<option value="">Botが参加中のサーバーがありません</option>';
+                badge.className = 'status-badge status-offline';
+                badge.textContent = '⚠️ サーバー未参加';
+                return;
+            }
+
+            // 本物のサーバー名をひとつずつ追加
+            guilds.forEach(guild => {
+                const option = document.createElement('option');
+                option.value = guild.id;
+                option.textContent = `🟢 ${guild.name}`;
+                select.appendChild(option);
+            });
+
+            // 選択枠を有効化＆ステータス更新
+            select.disabled = false;
+            badge.className = 'status-badge status-online';
+            badge.textContent = `🟢 Botオンライン (${guilds.length}個のサーバーを検出)`;
+
+        } catch (error) {
+            console.error('通信エラー:', error);
+            select.innerHTML = '<option value="">Botが起動していません</option>';
+            select.disabled = true;
+            badge.className = 'status-badge status-offline';
+            badge.textContent = '🔴 Botオフライン (python bot.py & を実行してください)';
+        }
+    }
+
+    // ページ表示時に実行
+    fetchServerList();
+</script>
+
+</body>
+</html>
