@@ -1,5 +1,6 @@
 import sys
 import types
+import os
 
 # --- [1. iOS / a-Shell 用のエラー回避設定] ---
 mock_audioop = types.ModuleType("audioop")
@@ -8,39 +9,34 @@ sys.modules["audioop._audioop"] = mock_audioop
 
 import discord
 from discord.ext import commands
+from aiohttp import web
 import datetime
+import asyncio
 
 # =========================================================
-# ⚙️ 設定エリア（ここを変更してください）
+# ⚙️ 設定エリア
 # =========================================================
 
-# 1. ボットのトークン
-BOT_TOKEN = "import os
+# 1. ボットのトークン（Renderの環境変数 DISCORD_TOKEN から読み込み）
+BOT_TOKEN = os.getenv("DISCORD_TOKEN")
 
-# --- 設定エリア ---
-# 環境変数からトークンを取得（なければ直接指定のフォールバック）
-BOT_TOKEN = os.getenv("DISCORD_TOKEN", "ここにトークン")
-"
-
-# 2. ログ送信用チャンネルID（数字のみ・クォーテーションなし）
+# 2. ログ送信用チャンネルID
 LOG_CHANNEL_AUDIT    = 1436724897681510430  # メッセージ編集・削除ログ
-LOG_CHANNEL_JOIN     = 1436724863640273078  # メンバー入退出ログ（今までと同じ）
+LOG_CHANNEL_JOIN     = 1436724863640273078  # メンバー入退出ログ
 LOG_CHANNEL_LEVEL    = 1534827182499823646  # レベルアップ通知ログ
 LOG_CHANNEL_SECURITY = 1436724949870973149  # セキュリティ・スパム警報ログ
-
-# ★ようこそメッセージ専用のチャンネルID★
 LOG_CHANNEL_WELCOME  = 1343233372482437140  # ようこそメッセージ専用
 
 # 3. セキュリティ設定
 NG_WORDS = ["スパムテスト", "荒らし", "ngword"]  # 検出したい単語リスト
 
 # 4. ようこそメッセージ設定
-WELCOME_ENABLE = True  # True: 有効 / False: 無効
+WELCOME_ENABLE = True
 WELCOME_TEXT = "{user} さん、**{server}** へようこそ！🎉\nルールを確認してから楽しんでくださいね！"
-WELCOME_IMAGE_URL = ""  # ここに画像のURLを入れると画像付きで送信されます！（例: "https://example.com/image.jpg"）
+WELCOME_IMAGE_URL = ""
 
 # =========================================================
-# 🤖 BOT 本体処理（ここより下は変更不要です）
+# 🤖 BOT 本体 ＆ Web サーバー処理
 # =========================================================
 
 intents = discord.Intents.default()
@@ -56,12 +52,55 @@ user_message_time = {}
 def get_level(xp):
     return int(xp ** 0.5)
 
+# --- Web サーバー ＆ API 処理 ---
+async def handle_index(request):
+    try:
+        with open("index.html", "r", encoding="utf-8") as f:
+            html_content = f.read()
+            
+        guilds_options = ""
+        for guild in bot.guilds:
+            guilds_options += f'<option value="{guild.id}">🟢 {guild.name}</option>\n'
+            
+        if not guilds_options:
+            guilds_options = '<option value="">参加中のサーバーがありません</option>'
+
+        html_content = html_content.replace('<!-- SERVER_OPTIONS -->', guilds_options)
+        return web.Response(text=html_content, content_type='text/html')
+    except Exception as e:
+        return web.Response(text=f"index.html の読み込みエラー: {e}", status=500)
+
+async def get_guilds_api(request):
+    guilds_data = []
+    for guild in bot.guilds:
+        guilds_data.append({
+            "id": str(guild.id),
+            "name": guild.name,
+            "icon": str(guild.icon.url) if guild.icon else None
+        })
+    return web.json_response(guilds_data, headers={"Access-Control-Allow-Origin": "*"})
+
+async def start_web_server():
+    # Renderから割り当てられるポート番号を取得（デフォルト8080）
+    port = int(os.getenv("PORT", 8080))
+    app = web.Application()
+    app.router.add_get('/', handle_index)
+    app.router.add_get('/index.html', handle_index)
+    app.router.add_get('/api/guilds', get_guilds_api)
+    
+    runner = web.AppRunner(app)
+    await runner.setup()
+    site = web.TCPSite(runner, '0.0.0.0', port)
+    await site.start()
+    print(f"🌐 Web API サーバーが起動しました (Port: {port})")
+
 @bot.event
 async def on_ready():
     print("====================================")
     print(f"🛡️ {bot.user.name} が起動しました！")
     print("サーバーの完全保護を開始します。")
     print("====================================")
+    bot.loop.create_task(start_web_server())
 
 # --- 1. メッセージ検知・セキュリティ・レベリング ---
 @bot.event
@@ -84,25 +123,36 @@ async def on_message(message):
                 await sec_channel.send(embed=embed)
             return
 
-    # B. レベリングシステム
+    # B. レベリングシステム（文字数に応じたXP獲得）
     user_id = message.author.id
     now = datetime.datetime.now()
     
-    # スパム防止クールダウン（3秒に1回だけXP付与）
+    # クールダウンチェック（3秒に1回）
     if user_id in user_message_time:
         if (now - user_message_time[user_id]).total_seconds() < 3:
             await bot.process_commands(message)
             return
 
     user_message_time[user_id] = now
-    old_xp = user_xp.get(user_id, 0)
-    new_xp = old_xp + 10
-    user_xp[user_id] = new_xp
+    
+    # 文字数に応じたXP計算ルール
+    msg_length = len(message.content)
 
-    if get_level(new_xp) > get_level(old_xp):
-        lvl_channel = bot.get_channel(LOG_CHANNEL_LEVEL)
-        if lvl_channel:
-            await lvl_channel.send(f"🎉 {message.author.mention} が **Level {get_level(new_xp)}** にアップしました！")
+    if msg_length < 3:
+        gained_xp = 0  # 3文字未満は0XP
+    else:
+        gained_xp = min(msg_length, 100)  # 1文字=1XP（1回最大100XP）
+
+    if gained_xp > 0:
+        old_xp = user_xp.get(user_id, 0)
+        new_xp = old_xp + gained_xp
+        user_xp[user_id] = new_xp
+
+        # レベルアップ判定
+        if get_level(new_xp) > get_level(old_xp):
+            lvl_channel = bot.get_channel(LOG_CHANNEL_LEVEL)
+            if lvl_channel:
+                await lvl_channel.send(f"🎉 {message.author.mention} が **Level {get_level(new_xp)}** にアップしました！（+{gained_xp} XP）")
 
     await bot.process_commands(message)
 
@@ -132,22 +182,18 @@ async def on_message_edit(before, after):
         embed.add_field(name="変更後", value=after.content, inline=False)
         await audit_channel.send(embed=embed)
 
-# --- 3. 入退出ログ ＆ ようこそメッセージ（チャンネル分離） ---
+# --- 3. 入退出ログ ＆ ようこそメッセージ ---
 @bot.event
 async def on_member_join(member):
-    # A. 入退室ログ送信（従来のログ用チャンネルへ）
     join_channel = bot.get_channel(LOG_CHANNEL_JOIN)
     if join_channel:
         await join_channel.send(f"📥 **{member.name}** がサーバーに参加しました！")
 
-    # B. ようこそメッセージ送信（専用チャンネル 1343233372482437140 へ）
     if WELCOME_ENABLE:
         welcome_channel = bot.get_channel(LOG_CHANNEL_WELCOME)
         if welcome_channel:
-            # {user} と {server} を実際の値に置き換え
             msg_text = WELCOME_TEXT.replace("{user}", member.mention).replace("{server}", member.guild.name)
             
-            # 画像URLが設定されている場合は埋め込み（Embed）で送信
             if WELCOME_IMAGE_URL:
                 embed = discord.Embed(
                     title=f"WELCOME TO {member.guild.name}!",
@@ -158,7 +204,6 @@ async def on_member_join(member):
                 embed.set_thumbnail(url=member.display_avatar.url)
                 await welcome_channel.send(embed=embed)
             else:
-                # 画像がない場合はテキストのみで送信
                 await welcome_channel.send(msg_text)
 
 @bot.event
