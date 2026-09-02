@@ -163,6 +163,17 @@
             margin-bottom: 6px;
         }
 
+        .time-range {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-top: 8px;
+        }
+
+        .time-range input {
+            width: 50%;
+        }
+
         .save-btn {
             background-color: var(--accent-color);
             color: white;
@@ -192,7 +203,6 @@
 
     <div class="section-title">⚙️ 設定メニュー</div>
 
-    <!-- タップでモーダルが開くエリア -->
     <div class="clickable-card" id="open-welcome-modal">
         <div class="card-info">
             <h3>📫 ようこそメッセージ & ログ設定</h3>
@@ -210,27 +220,52 @@
             <button class="close-btn" id="close-modal">&times;</button>
         </div>
 
-        <div class="form-group">
-            <label>💬 ようこそメッセージ本文</label>
-            <textarea id="welcome-msg" rows="3" placeholder="ようこそ {user} さん！"></textarea>
-        </div>
+        <form id="setting-form">
+            <div class="form-group">
+                <label>💬 ようこそメッセージ本文</label>
+                <textarea id="welcome-msg" rows="3" placeholder="ようこそ {user} さん！"></textarea>
+            </div>
 
-        <div class="form-group">
-            <label>📜 編集・削除ログチャンネル</label>
-            <input type="text" placeholder="チャンネルIDを入力">
-        </div>
+            <!-- 🔕 メンション・サイレント設定 -->
+            <div class="form-group">
+                <label>🔕 メンションのサイレント（@silent）設定</label>
+                <select id="silent-mode">
+                    <option value="none">通常メンション（通知あり）</option>
+                    <option value="always">常時サイレント（通知なし）</option>
+                    <option value="schedule">時間帯で切り替え</option>
+                </select>
 
-        <div class="form-group">
-            <label>🚨 NGワード警報チャンネル</label>
-            <input type="text" placeholder="チャンネルIDを入力">
-        </div>
+                <div class="time-range" id="time-setting" style="display: none;">
+                    <input type="time" id="silent-start" value="22:00">
+                    <span>〜</span>
+                    <input type="time" id="silent-end" value="07:00">
+                </div>
+            </div>
 
-        <div class="form-group">
-            <label>🤪 迷言通知チャンネル</label>
-            <input type="text" placeholder="チャンネルIDを入力">
-        </div>
+            <!-- チャンネル選択（ドロップダウン化） -->
+            <div class="form-group">
+                <label>📜 編集・削除ログチャンネル</label>
+                <select class="channel-select" id="audit-ch">
+                    <option value="">チャンネルを選択してください</option>
+                </select>
+            </div>
 
-        <button class="save-btn" id="save-settings">設定を保存する</button>
+            <div class="form-group">
+                <label>🚨 NGワード警報チャンネル</label>
+                <select class="channel-select" id="security-ch">
+                    <option value="">チャンネルを選択してください</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label>🤪 迷言通知チャンネル</label>
+                <select class="channel-select" id="meigen-ch">
+                    <option value="">チャンネルを選択してください</option>
+                </select>
+            </div>
+
+            <button type="button" class="save-btn" id="save-settings">設定を保存する</button>
+        </form>
     </div>
 </div>
 
@@ -239,28 +274,46 @@
     const openBtn = document.getElementById('open-welcome-modal');
     const closeBtn = document.getElementById('close-modal');
     const saveBtn = document.getElementById('save-settings');
+    const silentMode = document.getElementById('silent-mode');
+    const timeSetting = document.getElementById('time-setting');
+    const settingForm = document.getElementById('setting-form');
+
+    // サイレントモード選択の切り替え（時間帯設定の表示・非表示）
+    silentMode.addEventListener('change', () => {
+        if (silentMode.value === 'schedule') {
+            timeSetting.style.display = 'flex';
+        } else {
+            timeSetting.style.display = 'none';
+        }
+    });
 
     // モーダルを開く
     openBtn.addEventListener('click', () => {
         modal.style.display = 'flex';
     });
 
-    // モーダルを閉じる
-    closeBtn.addEventListener('click', () => {
+    // モーダルを閉じる関数
+    const closeModal = () => {
         modal.style.display = 'none';
-    });
+    };
 
-    // 背景タップで閉じる
+    closeBtn.addEventListener('click', closeModal);
+
     window.addEventListener('click', (e) => {
         if (e.target === modal) {
-            modal.style.display = 'none';
+            closeModal();
         }
     });
 
-    // 保存ボタン
+    // 設定を保存 ＆ フォーム内容の初期化（クリア）
     saveBtn.addEventListener('click', () => {
         alert('設定を保存しました！');
-        modal.style.display = 'none';
+        
+        // フォームのリセット（次回開いた時は空にする）
+        settingForm.reset();
+        timeSetting.style.display = 'none';
+        
+        closeModal();
     });
 </script>
 
