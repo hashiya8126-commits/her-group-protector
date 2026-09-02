@@ -45,8 +45,17 @@ bot = commands.Bot(command_prefix="!", intents=intents)
 user_xp = {}
 user_message_time = {}
 
+# --- 高難易度版：レベル計算式 ---
+# 必要XP = 100 * (Level ^ 2) の二次関数曲線（高レベルほど跳ね上がる）
 def get_level(xp):
-    return int(xp ** 0.5)
+    level = 0
+    while xp >= 100 * ((level + 1) ** 2):
+        level += 1
+    return level
+
+# 次のレベルまでに必要なXPを計算
+def get_next_level_xp(level):
+    return 100 * ((level + 1) ** 2)
 
 # --- Web サーバー ＆ API 処理 ---
 async def handle_index(request):
@@ -87,7 +96,6 @@ async def on_ready():
 # --- 📌 設定された絵文字リアクションで迷言追加機能 ---
 @bot.event
 async def on_raw_reaction_add(payload):
-    # 設定されている迷言用絵文字スタンプが押されたら迷言に登録
     if str(payload.emoji) in MEIGEN_EMOJIS:
         channel = bot.get_channel(payload.channel_id)
         if not channel:
@@ -98,7 +106,6 @@ async def on_raw_reaction_add(payload):
                 meigen_list.append(message.content)
                 await channel.send(f"💬 {message.author.mention} の発言を迷言集に登録しました！", delete_after=5)
                 
-                # 迷言専用チャンネルが設定されていればそこにも転送
                 meigen_ch = bot.get_channel(log_channels["meigen"])
                 if meigen_ch:
                     embed = discord.Embed(title="💬 新しい迷言が追加されました", description=f"「 {message.content} 」\n— {message.author.mention}", color=0x9B59B6)
@@ -126,24 +133,30 @@ async def on_message(message):
                 await sec_channel.send(embed=embed)
             return
 
-    # B. レベリング
+    # B. レベリング（高難易度版：クールタイム60秒 / 15〜25XP獲得）
     user_id = message.author.id
     now = datetime.datetime.now()
     
-    if user_id not in user_message_time or (now - user_message_time[user_id]).total_seconds() >= 3:
+    if user_id not in user_message_time or (now - user_message_time[user_id]).total_seconds() >= 60:
         user_message_time[user_id] = now
-        msg_length = len(message.content)
         
-        if msg_length >= 3:
-            gained_xp = min(msg_length, 100)
+        if len(message.content) >= 3:
+            gained_xp = random.randint(15, 25)
             old_xp = user_xp.get(user_id, 0)
             new_xp = old_xp + gained_xp
             user_xp[user_id] = new_xp
 
-            if get_level(new_xp) > get_level(old_xp):
+            old_level = get_level(old_xp)
+            new_level = get_level(new_xp)
+
+            if new_level > old_level:
                 lvl_channel = bot.get_channel(log_channels["level"])
                 if lvl_channel:
-                    await lvl_channel.send(f"🎉 {message.author.mention} が **Level {get_level(new_xp)}** にアップしました！")
+                    next_xp = get_next_level_xp(new_level)
+                    await lvl_channel.send(
+                        f"🎉 {message.author.mention} が **Level {new_level}** にアップしました！\n"
+                        f" (次のレベルまで あと `{next_xp - new_xp}` XP)"
+                    )
 
     await bot.process_commands(message)
 
@@ -158,13 +171,11 @@ async def meigen(ctx):
         selected = random.choice(meigen_list)
         embed = discord.Embed(title="💬 本日の迷言ピックアップ", description=f"「 {selected} 」", color=0x9B59B6)
         
-        # 迷言専用チャンネルが設定されている場合はそちらに送信、なければコマンドを打ったチャンネルに送信
         target_ch = bot.get_channel(log_channels["meigen"]) or ctx.channel
         await target_ch.send(embed=embed)
 
 @bot.command()
 async def meigen_add(ctx):
-    # 返信メッセージを迷言として登録
     if ctx.message.reference:
         ref_msg = await ctx.channel.fetch_message(ctx.message.reference.message_id)
         if ref_msg.content and ref_msg.content not in meigen_list:
@@ -234,7 +245,7 @@ async def level_reset_all(ctx):
     user_xp.clear()
     await ctx.send("💥 全ユーザーのXPとレベルをリセットしました。")
 
-# 4. チャンネル動的設定（各機能ごとの専用チャンネル設定）
+# 4. チャンネル動的設定
 @bot.command()
 @commands.has_permissions(administrator=True)
 async def set_channel(ctx, channel_type: str):
