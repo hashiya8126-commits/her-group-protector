@@ -3,9 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>HER Group Protector - メッセージ予約</title>
+    <title>	HER - メッセージ予約管理</title>
     <style>
-        :root, [data-theme="navy"] {
+        :root {
             --bg-color: #0f111a;
             --card-bg: #1a1d2d;
             --card-inner: #24283b;
@@ -13,16 +13,14 @@
             --text-main: #ffffff;
             --text-sub: #949ba4;
             --border-color: #2b2f48;
-            --accent-green: #2ecc71;
-            --accent-orange: #e67e22;
         }
 
         body {
-            margin: 0;
-            padding: 20px;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
             background-color: var(--bg-color);
             color: var(--text-main);
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            margin: 0;
+            padding: 20px;
             display: flex;
             justify-content: center;
         }
@@ -33,57 +31,10 @@
         }
 
         .header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
+            text-align: center;
             margin-bottom: 20px;
-            font-size: 1.2rem;
+            font-size: 1.3rem;
             font-weight: bold;
-        }
-
-        .back-link {
-            font-size: 0.85rem;
-            color: var(--primary);
-            text-decoration: none;
-            background: var(--card-bg);
-            padding: 8px 12px;
-            border-radius: 8px;
-            border: 1px solid var(--border-color);
-        }
-
-        .nav-tabs {
-            display: flex;
-            background: var(--card-bg);
-            padding: 4px;
-            border-radius: 12px;
-            margin-bottom: 16px;
-            border: 1px solid var(--border-color);
-            gap: 4px;
-        }
-
-        .tab-btn {
-            flex: 1;
-            padding: 10px;
-            border: none;
-            background: transparent;
-            color: var(--text-sub);
-            border-radius: 8px;
-            font-weight: bold;
-            font-size: 0.85rem;
-            cursor: pointer;
-        }
-
-        .tab-btn.active {
-            background: var(--primary);
-            color: white;
-        }
-
-        .page-section {
-            display: none;
-        }
-
-        .page-section.active {
-            display: block;
         }
 
         .card {
@@ -98,13 +49,17 @@
             font-size: 0.85rem;
             color: var(--text-sub);
             margin-bottom: 12px;
-            display: flex;
-            align-items: center;
-            gap: 6px;
             font-weight: bold;
         }
 
-        select, button, input, textarea {
+        label {
+            display: block;
+            font-size: 0.85rem;
+            color: var(--text-sub);
+            margin-bottom: 6px;
+        }
+
+        select, textarea, input[type="datetime-local"] {
             width: 100%;
             padding: 12px;
             border-radius: 8px;
@@ -113,216 +68,127 @@
             color: var(--text-main);
             font-size: 0.95rem;
             box-sizing: border-box;
-            margin-bottom: 12px;
+            margin-bottom: 16px;
         }
 
-        .form-group label {
-            display: block;
-            font-size: 0.85rem;
-            color: var(--text-sub);
-            margin-bottom: 6px;
-        }
-
-        .save-btn {
-            background-color: var(--primary);
+        button {
+            background: var(--primary);
             color: white;
-            font-weight: bold;
             border: none;
+            padding: 12px 20px;
+            border-radius: 8px;
             cursor: pointer;
-        }
-
-        table {
+            font-weight: bold;
             width: 100%;
-            border-collapse: collapse;
-            margin-top: 10px;
+            font-size: 0.95rem;
         }
 
-        th, td {
+        button:hover {
+            background: #4752c4;
+        }
+
+        .schedule-item {
+            background: var(--card-inner);
             padding: 12px;
-            text-align: left;
-            border-bottom: 1px solid var(--border-color);
-            font-size: 0.9rem;
-        }
-
-        th {
-            color: var(--text-sub);
-        }
-
-        .badge-sent {
-            color: var(--accent-green);
-            font-weight: bold;
-        }
-
-        .badge-pending {
-            color: var(--accent-orange);
-            font-weight: bold;
+            margin-top: 10px;
+            border-radius: 8px;
+            border-left: 4px solid var(--primary);
         }
     </style>
 </head>
 <body>
-
-<div class="container">
-    <div class="header">
-        <span>📅 メッセージ予約管理</span>
-        <a href="index.html" class="back-link">⬅️ メイン設定へ戻る</a>
-    </div>
-
-    <div class="nav-tabs">
-        <button class="tab-btn active" onclick="switchTab('register')">✍️ 新規予約登録</button>
-        <button class="tab-btn" onclick="switchTab('list')">📋 予約・送信済み一覧</button>
-    </div>
-
-    <div id="tab-register" class="page-section active">
+    <div class="container">
+        <div class="header">📅 メッセージ予約管理 (上層部共有用)</div>
+        
         <div class="card">
-            <div class="card-title">✨ メッセージ予約を作成</div>
-            <form id="schedule-form">
-                <div class="form-group">
-                    <label>🌐 送信先チャンネル</label>
-                    <select id="schedule-channel" required>
-                        <option value="">チャンネルを読み込み中...</option>
-                    </select>
-                </div>
-                <div class="form-group">
-                    <label>💬 送信メッセージ</label>
-                    <textarea id="schedule-message" rows="4" placeholder="送信する内容を入力してください..." required></textarea>
-                </div>
-                <div class="form-group">
-                    <label>⏰ 予約日時</label>
-                    <input type="datetime-local" id="schedule-time" required>
-                </div>
-                <button type="button" class="save-btn" onclick="registerSchedule()">予約を登録する</button>
+            <div class="card-title">📝 新規予約作成</div>
+            <form id="scheduleForm">
+                <label for="channelSelect">送信先チャンネル</label>
+                <select id="channelSelect" required>
+                    <option value="">読み込み中...</option>
+                </select>
+
+                <label for="messageContent">送信メッセージ</label>
+                <textarea id="messageContent" rows="4" placeholder="送信する内容を入力..." required></textarea>
+
+                <label for="scheduledTime">送信日時</label>
+                <input type="datetime-local" id="scheduledTime" required>
+
+                <button type="submit">予約を追加する</button>
             </form>
         </div>
-    </div>
 
-    <div id="tab-list" class="page-section">
         <div class="card">
-            <div class="card-title">📋 予約メッセージ一覧（ステータス確認）</div>
-            <table>
-                <thead>
-                    <tr>
-                        <th>予約者</th>
-                        <th>メッセージ</th>
-                        <th>予約時刻</th>
-                        <th>状態</th>
-                    </tr>
-                </thead>
-                <tbody id="schedule-table-body">
-                    </tbody>
-            </table>
+            <div class="card-title">📋 予約済みリスト</div>
+            <div id="scheduleListContainer">読み込み中...</div>
         </div>
     </div>
-</div>
 
-<script>
-    function switchTab(tabName) {
-        document.querySelectorAll('.page-section').forEach(el => el.classList.remove('active'));
-        document.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('active'));
-
-        if (tabName === 'register') {
-            document.getElementById('tab-register').classList.add('active');
-            document.querySelectorAll('.tab-btn')[0].classList.add('active');
-        } else if (tabName === 'list') {
-            document.getElementById('tab-list').classList.add('active');
-            document.querySelectorAll('.tab-btn')[1].classList.add('active');
-            loadSchedules();
-        }
-    }
-
-    async function loadChannels() {
-        try {
-            const res = await fetch('/api/channels?guild_id=default');
-            if (res.ok) {
+    <script>
+        async function loadChannels() {
+            try {
+                const res = await fetch('/api/channels');
                 const data = await res.json();
-                const select = document.getElementById('schedule-channel');
+                const select = document.getElementById('channelSelect');
                 select.innerHTML = '';
-                data.channels.forEach(ch => {
-                    const opt = document.createElement('option');
-                    opt.value = ch.id;
-                    opt.textContent = `# ${ch.name}`;
-                    select.appendChild(opt);
-                });
+                if (data.channels && data.channels.length > 0) {
+                    data.channels.forEach(ch => {
+                        const opt = document.createElement('option');
+                        opt.value = ch.id;
+                        opt.textContent = `# ${ch.name}`;
+                        select.appendChild(opt);
+                    });
+                } else {
+                    select.innerHTML = '<option value="">チャンネルが見つかりません</option>';
+                }
+            } catch (e) {
+                console.error(e);
             }
-        } catch (e) {
-            const select = document.getElementById('schedule-channel');
-            select.innerHTML = '<option value="123456789"># general (サンプル)</option>';
-        }
-    }
-
-    async function registerSchedule() {
-        const channel_id = document.getElementById('schedule-channel').value;
-        const message = document.getElementById('schedule-message').value;
-        const scheduled_time = document.getElementById('schedule-time').value;
-
-        if (!channel_id || !message || !scheduled_time) {
-            alert('❌ すべての項目を入力してください。');
-            return;
         }
 
-        const payload = { channel_id, message, scheduled_time };
+        async function loadSchedules() {
+            try {
+                const res = await fetch('/api/schedule/list');
+                const data = await res.json();
+                const container = document.getElementById('scheduleListContainer');
+                if (data.schedules && data.schedules.length > 0) {
+                    container.innerHTML = data.schedules.map(item => `
+                        <div class="schedule-item">
+                            <p style="margin: 0 0 6px 0; font-size: 0.85rem; color: #949ba4;"><b>予定時刻:</b> ${item.time} ${item.sent ? '✅(送信済)' : '⏳(待機中)'}</p>
+                            <p style="margin: 0; white-space: pre-wrap;">${item.message}</p>
+                        </div>
+                    `).join('');
+                } else {
+                    container.innerHTML = '<p style="color: #949ba4; font-size: 0.85rem;">予約はありません。</p>';
+                }
+            } catch (e) {
+                console.error(e);
+            }
+        }
 
-        try {
+        document.getElementById('scheduleForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const payload = {
+                channel_id: document.getElementById('channelSelect').value,
+                message: document.getElementById('messageContent').value,
+                scheduled_time: document.getElementById('scheduledTime').value
+            };
             const res = await fetch('/api/schedule/save', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(payload)
             });
-
             if (res.ok) {
-                alert('✅ メッセージの予約が完了しました！');
-                document.getElementById('schedule-message').value = '';
-                switchTab('list');
+                alert('✅ 予約が完了しました！');
+                document.getElementById('messageContent').value = '';
+                loadSchedules();
             } else {
-                alert('❌ 予約の登録に失敗しました。');
+                alert('❌ 予約に失敗しました。');
             }
-        } catch (e) {
-            alert('✅ 【デモ】予約データを受け付けました！');
-            switchTab('list');
-        }
-    }
+        });
 
-    async function loadSchedules() {
-        const tbody = document.getElementById('schedule-table-body');
-        tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;">読み込み中...</td></tr>';
-
-        try {
-            const res = await fetch('/api/schedule/list');
-            if (res.ok) {
-                const data = await res.json();
-                tbody.innerHTML = '';
-                data.schedules.forEach(item => {
-                    const badge = item.sent 
-                        ? '<span class="badge-sent">送信済み</span>' 
-                        : '<span class="badge-pending">待機中</span>';
-                    tbody.innerHTML += `<tr>
-                        <td>${item.user}</td>
-                        <td>${item.message}</td>
-                        <td>${item.time}</td>
-                        <td>${badge}</td>
-                    </tr>`;
-                });
-                return;
-            }
-        } catch (e) {
-            tbody.innerHTML = `
-                <tr>
-                    <td>あなた (Admin)</td>
-                    <td>明日のおしらせテストです</td>
-                    <td>2026-06-07 20:00</td>
-                    <td><span class="badge-pending">待機中</span></td>
-                </tr>
-                <tr>
-                    <td>あなた (Admin)</td>
-                    <td>定期メンテナンス開始します</td>
-                    <td>2026-06-05 12:00</td>
-                    <td><span class="badge-sent">送信済み</span></td>
-                </tr>
-            `;
-        }
-    }
-
-    loadChannels();
-</script>
-
+        loadChannels();
+        loadSchedules();
+    </script>
 </body>
 </html>

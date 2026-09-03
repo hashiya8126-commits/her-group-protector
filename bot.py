@@ -213,7 +213,7 @@ async def handle_index(request):
             if not guilds_options:
                 guilds_options = '<option value="">参加中のサーバーがありません</option>'
 
-            html_content = html_content.replace('', guilds_options)
+            html_content = html_content.replace('<!-- SERVER_OPTIONS -->', guilds_options)
             
             return web.Response(
                 body=html_content.encode('utf-8'),

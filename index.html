@@ -141,7 +141,6 @@
             gap: 10px;
         }
 
-        /* 画面幅に応じたグラフのレイアウト変更（スマホは縦1列、PCなど広い画面では横2列） */
         .dashboard-grid {
             display: grid;
             grid-template-columns: 1fr;
@@ -245,7 +244,7 @@
 
     <!-- 🏠 ホーム タブ -->
     <div id="tab-home" class="page-section active">
-        <!-- グラフコントロール（更新時間・過去の記録） -->
+        <!-- グラフコントロール -->
         <div class="card">
             <div class="card-title">🎛️ モニタリング・コントロール</div>
             <div class="grid-2">
@@ -269,7 +268,7 @@
             </div>
         </div>
 
-        <!-- グラフエリア（レスポンシブ対応：スマホは縦1列、PCは横2列） -->
+        <!-- グラフエリア -->
         <div class="dashboard-grid">
             <div class="card">
                 <div class="card-title">📈 CPU使用率</div>
@@ -305,6 +304,13 @@
                     <div class="status-value" id="stat-meigen">0 件</div>
                 </div>
             </div>
+        </div>
+
+        <div class="card">
+            <div class="card-title">📅 メッセージ予約管理 (上層部共有用)</div>
+            <button onclick="window.location.href='schedule.html'" class="save-btn" style="background: var(--primary);">
+                予約管理画面を開く（上層部リンク発行用） ➔
+            </button>
         </div>
 
         <div class="card">
@@ -464,15 +470,10 @@
     const commonOptions = {
         responsive: true,
         maintainAspectRatio: true,
-        animation: {
-            duration: 300
-        },
-        scales: {
-            y: { beginAtZero: true, max: 100 }
-        }
+        animation: { duration: 300 },
+        scales: { y: { beginAtZero: true, max: 100 } }
     };
 
-    // 初期データ生成（デフォルト10個分）
     function generateInitialData(maxCount) {
         const labels = [];
         const data = [];
@@ -500,17 +501,10 @@
 
     const responseTimeChart = new Chart(document.getElementById('response-time-chart').getContext('2d'), {
         type: 'line',
-        data: { 
-            labels: [...init.labels], 
-            datasets: [{ label: 'Response (ms)', data: init.data.map(v => v * 4), borderColor: '#e67e22', tension: 0.3, fill: false }] 
-        },
-        options: {
-            ...commonOptions,
-            scales: { y: { beginAtZero: true, max: 500 } }
-        }
+        data: { labels: [...init.labels], datasets: [{ label: 'Response (ms)', data: init.data.map(v => v * 4), borderColor: '#e67e22', tension: 0.3, fill: false }] },
+        options: { ...commonOptions, scales: { y: { beginAtZero: true, max: 500 } } }
     });
 
-    // グラフの横幅（最大保持数）を変更したときの処理
     function changeHistoryRange() {
         maxDataPoints = parseInt(document.getElementById('history-range').value);
         const newInit = generateInitialData(maxDataPoints);
@@ -525,8 +519,6 @@
     function addDataToChart(chart, label, newData) {
         chart.data.labels.push(label);
         chart.data.datasets[0].data.push(newData);
-        
-        // 選択された横幅（最大保持数）を超えたら古いものを消す
         if (chart.data.labels.length > maxDataPoints) {
             chart.data.labels.shift();
             chart.data.datasets[0].data.shift();
@@ -561,9 +553,7 @@
                 addDataToChart(responseTimeChart, nowLabel, data.ping_raw);
                 return;
             }
-        } catch (e) {
-            // オフライン時のデモ用フォールバック
-        }
+        } catch (e) {}
 
         addDataToChart(cpuChart, nowLabel, Math.floor(Math.random() * 30) + 15);
         addDataToChart(memoryChart, nowLabel, Math.floor(Math.random() * 10) + 50);
@@ -590,9 +580,7 @@
                     select.value = currentVal;
                 });
             }
-        } catch (e) {
-            console.error('チャンネル取得失敗:', e);
-        }
+        } catch (e) {}
     }
 
     async function loadCurrentSettings() {
@@ -622,9 +610,7 @@
                 if (data.exp_min_len) document.getElementById('exp-min-len').value = data.exp_min_len;
                 if (data.vc_exp) document.getElementById('vc-exp').value = data.vc_exp;
             }
-        } catch (e) {
-            console.error('設定の読み込み失敗:', e);
-        }
+        } catch (e) {}
     }
 
     document.getElementById('save-settings').addEventListener('click', async () => {
