@@ -14,7 +14,6 @@ import psutil
 # --- [1. iOS / a-Shell 用のエラー回避設定] ---
 import types
 mock_audioop = types.ModuleType("audioop")
-sys_modules = sys.modules if 'sys' in globals() else {}
 import sys
 sys.modules["audioop"] = mock_audioop
 sys.modules["audioop._audioop"] = mock_audioop
