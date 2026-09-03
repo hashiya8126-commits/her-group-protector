@@ -213,7 +213,7 @@ async def handle_index(request):
             if not guilds_options:
                 guilds_options = '<option value="">参加中のサーバーがありません</option>'
 
-            html_content = html_content.replace('<!-- SERVER_OPTIONS -->', guilds_options)
+            html_content = html_content.replace('', guilds_options)
             
             return web.Response(
                 body=html_content.encode('utf-8'),
@@ -397,9 +397,18 @@ async def start_web_server():
     await runner.setup()
     site = web.TCPSite(runner, '0.0.0.0', port)
     await site.start()
+    
     print(f"🌐 Webサーバーがポート {port} で起動しました！")
+    print("--------------------------------------------------")
+    external_url = os.getenv("RENDER_EXTERNAL_URL", "")
+    if external_url:
+        print(f"🔗 メイン設定ページ : {external_url}")
+        print(f"📅 予約管理ページ   : {external_url}/schedule.html")
+    else:
+        print(f"🔗 メイン設定ページ : http://localhost:{port}/index.html")
+        print(f"📅 予約管理ページ   : http://localhost:{port}/schedule.html")
+    print("--------------------------------------------------")
 
-# 🔻 【修正点】discord.Client から commands.Bot に変更して tree を使えるようにします
 class ProtectorBot(commands.Bot):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -513,7 +522,7 @@ async def on_message(message):
                 stars = "⭐" * weird_level
                 embed = discord.Embed(
                     title="🤪 迷言を自動検知しました",
-                    description=f"©️ 「 {message.content} 」",
+                    description=f"「 {message.content} 」",
                     color=0x9B59B6
                 )
                 embed.add_field(name="発言者", value=author.mention, inline=True)
