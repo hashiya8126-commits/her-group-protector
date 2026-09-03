@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
 import os
 import random
 import time
@@ -22,6 +22,11 @@ import discord
 from discord import app_commands
 from discord.ext import commands, tasks
 from aiohttp import web
+
+# =========================================================
+# ⚙️ タイムゾーン設定 (JST: UTC+9)
+# =========================================================
+JST = timezone(timedelta(hours=9))
 
 # =========================================================
 # ⚙️ 初期設定 ＆ クラウドデータベース (JSONBin.io) 設定
@@ -417,7 +422,8 @@ class ProtectorBot(commands.Bot):
 
     @tasks.loop(seconds=10)
     async def check_scheduled_messages(self):
-        now = datetime.now()
+        # 修正：サーバーのタイムゾーンに関わらず、常に日本時間(JST)で現在時刻を取得する
+        now = datetime.now(JST).replace(tzinfo=None)
         updated = False
         for item in scheduled_messages:
             if not item["sent"] and item["scheduled_time"] <= now:
