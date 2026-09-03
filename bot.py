@@ -1,19 +1,21 @@
-import sys
-import types
+from datetime import datetime
 import os
 import random
-import datetime
 import time
 import asyncio
 import re
 import json
 import urllib.request
 import urllib.error
-import psutil
+import threading
 from collections import defaultdict
+import psutil
 
 # --- [1. iOS / a-Shell 用のエラー回避設定] ---
+import types
 mock_audioop = types.ModuleType("audioop")
+sys_modules = sys.modules if 'sys' in globals() else {} # fallback
+import sys
 sys.modules["audioop"] = mock_audioop
 sys.modules["audioop._audioop"] = mock_audioop
 
@@ -61,9 +63,12 @@ bot_config = {
     "vc_exp": 5
 }
 
+# 予約メッセージを保持するリスト
+scheduled_messages = []
+
 # --- ☁️ クラウドデータ同期関数 ---
 def load_cloud_data():
-    global welcome_message_template, bot_config
+    global welcome_message_template, bot_config, scheduled_messages
     if not JSONBIN_KEY or not JSONBIN_BIN_ID:
         print("⚠️ JSONBINの鍵が設定されていないため、ローカルメモリで起動します。")
         return {}, []
@@ -89,6 +94,17 @@ def load_cloud_data():
                 saved_config = record.get("bot_config", {})
                 bot_config.update(saved_config)
 
+                # 予約メッセージの復元（もしクラウド保存している場合）
+                saved_schedules = record.get("scheduled_messages", [])
+                for item in saved_schedules:
+                    scheduled_messages.append({
+                        "channel_id": int(item["channel_id"]),
+                        "message": item["message"],
+                        "scheduled_time": datetime.strptime(item["scheduled_time"], "%Y-%m-%d %H:%M"),
+                        "sent": item["sent"],
+                        "user": item.get("user", "Admin")
+                    })
+
                 print("☁️ クラウドからデータを読み込みました！")
                 return xp_data, meigen_data
     except Exception as e:
@@ -99,12 +115,24 @@ def save_cloud_data():
     if not JSONBIN_KEY or not JSONBIN_BIN_ID:
         return
 
+    # 予約データのシリアライズ用変換
+    serializable_schedules = []
+    for item in scheduled_messages:
+        serializable_schedules.append({
+            "channel_id": item["channel_id"],
+            "message": item["message"],
+            "scheduled_time": item["scheduled_time"].strftime("%Y-%m-%d %H:%M"),
+            "sent": item["sent"],
+            "user": item.get("user", "Admin")
+        })
+
     payload = json.dumps({
         "user_xp": {str(k): v for k, v in user_xp.items()},
         "meigen_list": meigen_list,
         "log_channels": log_channels,
         "welcome_message": welcome_message_template,
-        "bot_config": bot_config
+        "bot_config": bot_config,
+        "scheduled_messages": serializable_schedules
     }).encode("utf-8")
 
     req = urllib.request.Request(
@@ -207,6 +235,24 @@ async def handle_index(request):
     except Exception as e:
         return web.Response(text=f"HTMLエラー: {e}", status=500)
 
+async def handle_schedule_page(request):
+    try:
+        if os.path.exists("schedule.html"):
+            with open("schedule.html", "r", encoding="utf-8") as f:
+                html_content = f.read()
+            return web.Response(
+                body=html_content.encode('utf-8'),
+                headers={'Content-Type': 'text/html; charset=utf-8'}
+            )
+        else:
+            return web.Response(
+                body="<h1>Schedule Page</h1><p>schedule.html が見つかりません。</p>".encode('utf-8'),
+                headers={'Content-Type': 'text/html; charset=utf-8'},
+                status=404
+            )
+    except Exception as e:
+        return web.Response(text=f"HTMLエラー: {e}", status=500)
+
 async def get_status_api(request):
     uptime_seconds = int(time.time() - start_time)
     hours, remainder = divmod(uptime_seconds, 3600)
@@ -246,6 +292,10 @@ async def get_channels_api(request):
         guild = bot.get_guild(int(guild_id))
         if guild:
             channels = [{"id": str(ch.id), "name": ch.name} for ch in guild.text_channels]
+    elif bot.guilds:
+        # デフォルトで最初のサーバーのチャンネルを返す
+        guild = bot.guilds[0]
+        channels = [{"id": str(ch.id), "name": ch.name} for ch in guild.text_channels]
     return web.json_response({"channels": channels}, headers={"Access-Control-Allow-Origin": "*"})
 
 async def get_settings_api(request):
@@ -300,21 +350,95 @@ async def save_settings_api(request):
     except Exception as e:
         return web.json_response({"status": "error", "message": str(e)}, status=400)
 
+async def api_get_schedules(request):
+    formatted = []
+    for item in scheduled_messages:
+        formatted.append(
+            {
+                "user": item.get("user", "Admin"),
+                "message": item["message"],
+                "time": item["scheduled_time"].strftime("%Y-%m-%d %H:%M"),
+                "sent": item["sent"],
+            }
+        )
+    return web.json_response({"schedules": formatted}, headers={"Access-Control-Allow-Origin": "*"})
+
+async def api_save_schedule(request):
+    try:
+        data = await request.json()
+        if not data:
+            return web.json_response({"status": "error", "message": "No data"}, status=400)
+
+        channel_id = int(data.get("channel_id"))
+        message = data.get("message")
+        scheduled_time_str = data.get("scheduled_time")  # "YYYY-MM-DDTHH:MM"
+        scheduled_time = datetime.strptime(scheduled_time_str, "%Y-%m-%dT%H:%M")
+
+        scheduled_messages.append(
+            {
+                "channel_id": channel_id,
+                "message": message,
+                "scheduled_time": scheduled_time,
+                "sent": False,
+                "user": "Admin User",
+            }
+        )
+        save_cloud_data()
+        return web.json_response({"status": "success"}, headers={"Access-Control-Allow-Origin": "*"})
+    except Exception as e:
+        return web.json_response({"status": "error", "message": str(e)}, status=400)
+
 async def start_web_server():
     port = int(os.getenv("PORT", 10000))
     app = web.Application()
     app.router.add_get('/', handle_index)
     app.router.add_get('/index.html', handle_index)
+    app.router.add_get('/schedule.html', handle_schedule_page)
     app.router.add_get('/api/status', get_status_api)
     app.router.add_get('/api/channels', get_channels_api)
     app.router.add_get('/api/settings', get_settings_api)
     app.router.add_post('/api/settings', save_settings_api)
+    app.router.add_get('/api/schedule/list', api_get_schedules)
+    app.router.add_post('/api/schedule/save', api_save_schedule)
     
     runner = web.AppRunner(app)
     await runner.setup()
     site = web.TCPSite(runner, '0.0.0.0', port)
     await site.start()
     print(f"🌐 Webサーバーがポート {port} で起動しました！")
+
+class ProtectorBot(discord.Client):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+    async def setup_hook(self):
+        # 予約メッセージのバックグラウンド定期チェックを開始
+        self.check_scheduled_messages.start()
+
+    @tasks.loop(seconds=10)
+    async def check_scheduled_messages(self):
+        now = datetime.now()
+        updated = False
+        for item in scheduled_messages:
+            if not item["sent"] and item["scheduled_time"] <= now:
+                channel = self.get_channel(item["channel_id"])
+                if channel:
+                    try:
+                        await channel.send(
+                            f"📢 **【予約メッセージ】**\n{item['message']}"
+                        )
+                        item["sent"] = True
+                        updated = True
+                    except Exception as e:
+                        print(f"予約メッセージの送信に失敗しました: {e}")
+        if updated:
+            save_cloud_data()
+
+    @check_scheduled_messages.before_loop
+    async def before_check(self):
+        await self.wait_until_ready()
+
+bot = ProtectorBot(intents=intents)
 
 @bot.event
 async def on_ready():
@@ -497,8 +621,17 @@ async def slash_level_reset_all(interaction: discord.Interaction):
     save_cloud_data()
     await interaction.response.send_message("🚨 **全員のレベルおよびXPデータを全消去（リセット）しました。**")
 
+def run_flask_thread():
+    # aiohttpベースの非同期Webサーバーを別スレッドで走らせるためのブリッジ
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    loop.run_until_complete(start_web_server())
+    loop.run_forever()
+
 async def main():
-    await start_web_server()
+    # Webサーバーを別スレッドで起動
+    threading.Thread(target=run_flask_thread, daemon=True).start()
+    
     if BOT_TOKEN:
         await bot.start(BOT_TOKEN)
     else:
