@@ -14,7 +14,7 @@ import psutil
 # --- [1. iOS / a-Shell 用のエラー回避設定] ---
 import types
 mock_audioop = types.ModuleType("audioop")
-sys_modules = sys.modules if 'sys' in globals() else {} # fallback
+sys_modules = sys.modules if 'sys' in globals() else {}
 import sys
 sys.modules["audioop"] = mock_audioop
 sys.modules["audioop._audioop"] = mock_audioop
@@ -94,7 +94,6 @@ def load_cloud_data():
                 saved_config = record.get("bot_config", {})
                 bot_config.update(saved_config)
 
-                # 予約メッセージの復元（もしクラウド保存している場合）
                 saved_schedules = record.get("scheduled_messages", [])
                 for item in saved_schedules:
                     scheduled_messages.append({
@@ -115,7 +114,6 @@ def save_cloud_data():
     if not JSONBIN_KEY or not JSONBIN_BIN_ID:
         return
 
-    # 予約データのシリアライズ用変換
     serializable_schedules = []
     for item in scheduled_messages:
         serializable_schedules.append({
@@ -157,14 +155,9 @@ intents.message_content = True
 intents.members = True
 intents.voice_states = True
 
-bot = commands.Bot(command_prefix="!", intents=intents)
 user_message_time = {}
-
-# スパム検知用キャッシュ
 user_msg_timestamps = defaultdict(list)
 user_last_msg = defaultdict(lambda: {"last_msg": "", "count": 0})
-
-# VCタイムスタンプ用
 vc_join_times = {}
 
 def get_level(xp):
@@ -293,7 +286,6 @@ async def get_channels_api(request):
         if guild:
             channels = [{"id": str(ch.id), "name": ch.name} for ch in guild.text_channels]
     elif bot.guilds:
-        # デフォルトで最初のサーバーのチャンネルを返す
         guild = bot.guilds[0]
         channels = [{"id": str(ch.id), "name": ch.name} for ch in guild.text_channels]
     return web.json_response({"channels": channels}, headers={"Access-Control-Allow-Origin": "*"})
@@ -371,7 +363,7 @@ async def api_save_schedule(request):
 
         channel_id = int(data.get("channel_id"))
         message = data.get("message")
-        scheduled_time_str = data.get("scheduled_time")  # "YYYY-MM-DDTHH:MM"
+        scheduled_time_str = data.get("scheduled_time")
         scheduled_time = datetime.strptime(scheduled_time_str, "%Y-%m-%dT%H:%M")
 
         scheduled_messages.append(
@@ -407,12 +399,12 @@ async def start_web_server():
     await site.start()
     print(f"🌐 Webサーバーがポート {port} で起動しました！")
 
-class ProtectorBot(discord.Client):
+# 🔻 【修正点】discord.Client から commands.Bot に変更して tree を使えるようにします
+class ProtectorBot(commands.Bot):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
     async def setup_hook(self):
-        # 予約メッセージのバックグラウンド定期チェックを開始
         self.check_scheduled_messages.start()
 
     @tasks.loop(seconds=10)
@@ -438,7 +430,7 @@ class ProtectorBot(discord.Client):
     async def before_check(self):
         await self.wait_until_ready()
 
-bot = ProtectorBot(intents=intents)
+bot = ProtectorBot(command_prefix="!", intents=intents)
 
 @bot.event
 async def on_ready():
@@ -521,7 +513,7 @@ async def on_message(message):
                 stars = "⭐" * weird_level
                 embed = discord.Embed(
                     title="🤪 迷言を自動検知しました",
-                    description=f"「 {message.content} 」",
+                    description=f"©️ 「 {message.content} 」",
                     color=0x9B59B6
                 )
                 embed.add_field(name="発言者", value=author.mention, inline=True)
@@ -622,14 +614,12 @@ async def slash_level_reset_all(interaction: discord.Interaction):
     await interaction.response.send_message("🚨 **全員のレベルおよびXPデータを全消去（リセット）しました。**")
 
 def run_flask_thread():
-    # aiohttpベースの非同期Webサーバーを別スレッドで走らせるためのブリッジ
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
     loop.run_until_complete(start_web_server())
     loop.run_forever()
 
 async def main():
-    # Webサーバーを別スレッドで起動
     threading.Thread(target=run_flask_thread, daemon=True).start()
     
     if BOT_TOKEN:
