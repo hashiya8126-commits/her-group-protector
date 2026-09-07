@@ -11,7 +11,7 @@
             --bg-color: #0b0d14;
             --card-bg: #151823;
             --card-inner: #1e2230;
-            --primary: #5865f2;
+            --primary: #5865f2; /* ここがカラー変更で変わる */
             --success: #2ecc71;
             --danger: #e74c3c;
             --text-main: #ffffff;
@@ -50,6 +50,7 @@
             justify-content: center;
             gap: 10px;
             margin-bottom: 24px;
+            flex-wrap: wrap;
         }
 
         .tab-btn {
@@ -62,9 +63,12 @@
             font-weight: bold;
             font-size: 0.95rem;
             transition: all 0.2s;
+            text-decoration: none;
+            display: inline-block;
+            text-align: center;
         }
 
-        .tab-btn.active {
+        .tab-btn.active, .tab-btn:hover {
             background: var(--primary);
             color: white;
             border-color: var(--primary);
@@ -119,7 +123,7 @@
             font-weight: bold;
         }
 
-        input[type="text"], input[type="number"], select, textarea {
+        input[type="text"], input[type="number"], input[type="color"], select, textarea {
             width: 100%;
             padding: 10px 12px;
             border-radius: 8px;
@@ -129,6 +133,12 @@
             font-size: 0.95rem;
             box-sizing: border-box;
             margin-bottom: 16px;
+        }
+
+        input[type="color"] {
+            height: 42px;
+            cursor: pointer;
+            padding: 4px;
         }
 
         textarea { resize: vertical; }
@@ -220,15 +230,27 @@
             <div class="status-badge" id="botStatus">ステータス読込中...</div>
         </div>
 
-        <!-- タブ切り替えボタン -->
+        <!-- タブ＆リンクメニュー -->
         <div class="tab-menu">
             <button class="tab-btn active" onclick="switchTab('settings', this)">⚙️ 詳細設定</button>
             <button class="tab-btn" onclick="switchTab('monitor', this)">📊 システムモニター</button>
+            <a href="/schedule.html" class="tab-btn">📅 メッセージ予約管理</a>
         </div>
 
         <!-- ① 設定タブ -->
         <div id="tab-settings" class="tab-content active">
             <form id="settingsForm">
+                <!-- 画面デザイン・カラー変更 -->
+                <div class="card">
+                    <div class="card-title">🎨 ダッシュボード画面デザイン設定</div>
+                    <div class="grid-2">
+                        <div>
+                            <label for="theme_color">アクセントカラー（メインカラー）</label>
+                            <input type="color" id="theme_color" value="#5865f2" onchange="updateThemeColor(this.value)">
+                        </div>
+                    </div>
+                </div>
+
                 <div class="card">
                     <div class="card-title">🤖 Bot プレゼンス・基本動作設定</div>
                     <div class="grid-2">
@@ -436,6 +458,11 @@
     </div>
 
     <script>
+        // カラーテーマ変更処理
+        function updateThemeColor(color) {
+            document.documentElement.style.setProperty('--primary', color);
+        }
+
         // タブ切り替え処理
         function switchTab(tabName, btnElement) {
             document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
@@ -525,12 +552,16 @@
                 if(settings.welcome_msg) {
                     document.getElementById('welcome_msg').value = settings.welcome_msg;
                 }
-                // 他の設定値も必要に応じて適用
+                if(settings.theme_color) {
+                    document.getElementById('theme_color').value = settings.theme_color;
+                    updateThemeColor(settings.theme_color);
+                }
             } catch (e) {}
         }
 
         async function saveSettings() {
             const payload = {
+                theme_color: document.getElementById('theme_color').value,
                 bot_activity_type: document.getElementById('bot_activity_type').value,
                 bot_status_text: document.getElementById('bot_status_text').value,
                 welcome_ch: document.getElementById('welcome_ch').value,
