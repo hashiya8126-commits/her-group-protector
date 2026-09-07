@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HER Group Protector - システムモニター</title>
+    <!-- Chart.js 読み込み -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        :root {
+            --bg-color: #0b0d14;
+            --card-bg: #151823;
+            --primary: #5865f2;
+            --success: #2ecc71;
+            --text-main: #ffffff;
+            --text-sub: #949ba4;
+            --border-color: #272a38;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            justify-content: center;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 900px;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 24px;
+        }
+
+        .nav-links {
+            margin-bottom: 20px;
+            text-align: center;
+        }
+
+        .nav-links a {
+            color: var(--primary);
+            text-decoration: none;
+            font-weight: bold;
+            background: var(--card-bg);
+            padding: 8px 16px;
+            border-radius: 8px;
+            border: 1px solid var(--border-color);
+        }
+
+        .nav-links a:hover { background: #1e2230; }
+
+        .card {
+            background: var(--card-bg);
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 20px;
+            border: 1px solid var(--border-color);
+        }
+
+        .card-title {
+            font-size: 1.05rem;
+            color: var(--text-sub);
+            margin-bottom: 12px;
+            font-weight: bold;
+        }
+
+        .chart-container {
+            position: relative;
+            height: 220px;
+            width: 100%;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+
+        .stat-box {
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 10px;
+            padding: 15px;
+            text-align: center;
+        }
+
+        .stat-value {
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: var(--success);
+            margin-top: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>📊 システムリアルタイムモニター</h1>
+            <div class="nav-links" style="margin-top: 12px;">
+                <a href="/">🛡️ 設定ダッシュボードに戻る</a>
+            </div>
+        </div>
+
+        <!-- 現在値サマリー -->
+        <div class="stats-grid">
+            <div class="stat-box">
+                <div class="card-title">CPU 使用率</div>
+                <div class="stat-value" id="cpuVal">-- %</div>
+            </div>
+            <div class="stat-box">
+                <div class="card-title">RAM 使用率</div>
+                <div class="stat-value" id="ramVal">-- %</div>
+            </div>
+            <div class="stat-box">
+                <div class="card-title">Discord PING</div>
+                <div class="stat-value" id="pingVal">-- ms</div>
+            </div>
+        </div>
+
+        <!-- グラフカード -->
+        <div class="card">
+            <div class="card-title">💻 CPU & RAM 使用率推移 (%)</div>
+            <div class="chart-container">
+                <canvas id="systemChart"></canvas>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-title">📡 Discord PING 推移 (ms)</div>
+            <div class="chart-container">
+                <canvas id="pingChart"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // グラフの初期設定 (Chart.js)
+        const maxDataPoints = 20;
+        const timeLabels = [];
+
+        const systemCtx = document.getElementById('systemChart').getContext('2d');
+        const systemChart = new Chart(systemCtx, {
+            type: 'line',
+            data: {
+                labels: timeLabels,
+                datasets: [
+                    { label: 'CPU (%)', data: [], borderColor: '#3498db', backgroundColor: 'rgba(52, 152, 219, 0.1)', tension: 0.3, fill: true },
+                    { label: 'RAM (%)', data: [], borderColor: '#2ecc71', backgroundColor: 'rgba(46, 204, 113, 0.1)', tension: 0.3, fill: true }
+                ]
+            },
+            options: { responsive: true, maintainAspectRatio: false, scales: { y: { min: 0, max: 100 } } }
+        });
+
+        const pingCtx = document.getElementById('pingChart').getContext('2d');
+        const pingChart = new Chart(pingCtx, {
+            type: 'line',
+            data: {
+                labels: timeLabels,
+                datasets: [
+                    { label: 'PING (ms)', data: [], borderColor: '#e74c3c', backgroundColor: 'rgba(231, 76, 60, 0.1)', tension: 0.3, fill: true }
+                ]
+            },
+            options: { responsive: true, maintainAspectRatio: false }
+        });
+
+        // 定期的にバックエンドからメトリクスデータを取得して更新
+        async function fetchMetrics() {
+            try {
+                const res = await fetch('/api/metrics'); // バックエンドに用意するAPIエンドポイント
+                const data = await res.json();
+
+                const nowStr = new Date().toLocaleTimeString();
+
+                if (timeLabels.length >= maxDataPoints) {
+                    timeLabels.shift();
+                    systemChart.data.datasets[0].data.shift();
+                    systemChart.data.datasets[1].data.shift();
+                    pingChart.data.datasets[0].data.shift();
+                }
+
+                timeLabels.push(nowStr);
+                systemChart.data.datasets[0].data.push(data.cpu || 0);
+                systemChart.data.datasets[1].data.push(data.ram || 0);
+                pingChart.data.datasets[0].data.push(data.ping || 0);
+
+                systemChart.update();
+                pingChart.update();
+
+                document.getElementById('cpuVal').textContent = (data.cpu || 0) + ' %';
+                document.getElementById('ramVal').textContent = (data.ram || 0) + ' %';
+                document.getElementById('pingVal').textContent = (data.ping || 0) + ' ms';
+            } catch (e) {
+                console.error("メトリクス取得失敗:", e);
+            }
+        }
+
+        // 3秒ごとに更新
+        setInterval(fetchMetrics, 3000);
+        fetchMetrics();
+    </script>
+</body>
+</html>
