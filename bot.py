@@ -37,7 +37,6 @@ JSONBIN_KEY = os.getenv("JSONBIN_KEY", "")
 JSONBIN_BIN_ID = os.getenv("JSONBIN_BIN_ID", "")
 JSONBIN_URL = f"https://api.jsonbin.io/v3/b/{JSONBIN_BIN_ID}"
 
-# 稼働時間・統計用
 start_time = time.time()
 ng_count = 0
 
@@ -52,9 +51,6 @@ log_channels = {
 
 welcome_message_template = "ようこそ {user} さん！HER Group サーバーへ！"
 
-# ---------------------------------------------------------
-# 詳細設定オブジェクト（JSONBin同期用 defaults）
-# ---------------------------------------------------------
 bot_config = {
     "ng_words": ["スパムテスト", "荒らし", "ngword"],
     "spam_max_msgs": 5,
@@ -64,15 +60,18 @@ bot_config = {
     "exp_cooldown": 60,
     "exp_min": 10,
     "exp_max": 25,
-    "vc_exp": 5
+    "vc_exp": 5,
+    "meigen_star_threshold": 3,      # ⭐が何個ついたら迷言候補にするか
+    "meigen_interval_sec": 3600      # 迷言を送信する最小の間隔（秒）
 }
 
-# 予約メッセージを保持するリスト
 scheduled_messages = []
+meigen_queue = [] # 蓄積された迷言候補
+last_meigen_sent_time = 0
 
 # --- ☁️ クラウドデータ同期関数 ---
 def load_cloud_data():
-    global welcome_message_template, bot_config, scheduled_messages
+    global welcome_message_template, bot_config, scheduled_messages, meigen_queue
     if not JSONBIN_KEY or not JSONBIN_BIN_ID:
         print("⚠️ JSONBINの鍵が設定されていないため、ローカルメモリで起動します。")
         return {}, []
@@ -158,10 +157,12 @@ intents = discord.Intents.default()
 intents.message_content = True
 intents.members = True
 intents.voice_states = True
+intents.guilds = True
+intents.moderation = True
+intents.reactions = True
 
 user_message_time = {}
 user_msg_timestamps = defaultdict(list)
-user_last_msg = defaultdict(lambda: {"last_msg": "", "count": 0})
 vc_join_times = {}
 
 def get_level(xp):
@@ -172,39 +173,6 @@ def get_level(xp):
 
 def get_next_level_xp(level):
     return 100 * ((level + 1) ** 2)
-
-def evaluate_weirdness(text):
-    if len(text) < 4:
-        return 0
-    score = 0
-    if re.search(r'(問[1-9一二三]|求めなさい|求めよ|ただし|とする[。 \n]|答えよ)', text):
-        score += 2
-    keywords = ['速度', '質量', '気体', '定数', '電離', '因果', '文脈', '筆者', '傍線部', '矛盾', '極限', '証明']
-    kw_count = sum(1 for kw in keywords if kw in text)
-    if kw_count >= 2:
-        score += 2
-    elif kw_count == 1:
-        score += 1
-    if re.search(r'(言いました|思った|突然|突如|こう言った|なぜなら|結果|しかし)', text) and len(text) > 20:
-        score += 1
-    if re.search(r'(.)\1{3,}', text):
-        score += 2
-    symbol_count = len(re.findall(r'[!?！？w草#$%\^&\*()_\-+=\[\]{};:\'",<>\/.?~\\\\]', text))
-    if symbol_count >= 5:
-        score += 2
-    if re.match(r'^[ぁ-んー\s]+$', text) and len(text) >= 10:
-        score += 1
-    if score >= 4:
-        return 5
-    elif score == 3:
-        return 4
-    elif score == 2:
-        return 3
-    elif score == 1:
-        return 2 if random.random() < 0.4 else 1
-    if len(text) > 30 and text.count('\n') >= 2 and random.random() < 0.1:
-        return 1
-    return 0
 
 # --- Web サーバー ＆ API ---
 async def handle_index(request):
@@ -297,9 +265,6 @@ async def get_channels_api(request):
 async def get_settings_api(request):
     data = {
         "welcome_msg": welcome_message_template,
-        "silent_mode": "none",
-        "silent_start": "22:00",
-        "silent_end": "07:00",
         "welcome_ch": str(log_channels.get("welcome", "")),
         "level_ch": str(log_channels.get("level", "")),
         "audit_ch": str(log_channels.get("audit", "")),
@@ -314,7 +279,9 @@ async def get_settings_api(request):
         "exp_cooldown": bot_config.get("exp_cooldown", 60),
         "exp_min": bot_config.get("exp_min", 10),
         "exp_max": bot_config.get("exp_max", 25),
-        "vc_exp": bot_config.get("vc_exp", 5)
+        "vc_exp": bot_config.get("vc_exp", 5),
+        "meigen_star_threshold": bot_config.get("meigen_star_threshold", 3),
+        "meigen_interval_sec": bot_config.get("meigen_interval_sec", 3600)
     }
     return web.json_response(data, headers={"Access-Control-Allow-Origin": "*"})
 
@@ -340,6 +307,8 @@ async def save_settings_api(request):
         if "exp_min" in data: bot_config["exp_min"] = int(data["exp_min"])
         if "exp_max" in data: bot_config["exp_max"] = int(data["exp_max"])
         if "vc_exp" in data: bot_config["vc_exp"] = int(data["vc_exp"])
+        if "meigen_star_threshold" in data: bot_config["meigen_star_threshold"] = int(data["meigen_star_threshold"])
+        if "meigen_interval_sec" in data: bot_config["meigen_interval_sec"] = int(data["meigen_interval_sec"])
 
         save_cloud_data()
         return web.json_response({"status": "ok"}, headers={"Access-Control-Allow-Origin": "*"})
@@ -367,7 +336,9 @@ async def api_save_schedule(request):
 
         channel_id = int(data.get("channel_id"))
         message = data.get("message")
-        scheduled_time_str = data.get("scheduled_time")
+        scheduled_time_str = data.get("scheduled_time") # 例: "2026-09-03T14:15"
+        
+        # 確実にJSTとしてパース・保持する
         scheduled_time = datetime.strptime(scheduled_time_str, "%Y-%m-%dT%H:%M")
 
         scheduled_messages.append(
@@ -376,7 +347,7 @@ async def api_save_schedule(request):
                 "message": message,
                 "scheduled_time": scheduled_time,
                 "sent": False,
-                "user": "Admin User",
+                "user": "Web Admin",
             }
         )
         save_cloud_data()
@@ -401,17 +372,7 @@ async def start_web_server():
     await runner.setup()
     site = web.TCPSite(runner, '0.0.0.0', port)
     await site.start()
-    
     print(f"🌐 Webサーバーがポート {port} で起動しました！")
-    print("--------------------------------------------------")
-    external_url = os.getenv("RENDER_EXTERNAL_URL", "")
-    if external_url:
-        print(f"🔗 メイン設定ページ : {external_url}")
-        print(f"📅 予約管理ページ   : {external_url}/schedule.html")
-    else:
-        print(f"🔗 メイン設定ページ : http://localhost:{port}/index.html")
-        print(f"📅 予約管理ページ   : http://localhost:{port}/schedule.html")
-    print("--------------------------------------------------")
 
 class ProtectorBot(commands.Bot):
     def __init__(self, *args, **kwargs):
@@ -419,10 +380,10 @@ class ProtectorBot(commands.Bot):
 
     async def setup_hook(self):
         self.check_scheduled_messages.start()
+        self.check_meigen_queue.start()
 
     @tasks.loop(seconds=10)
     async def check_scheduled_messages(self):
-        # 修正：サーバーのタイムゾーンに関わらず、常に日本時間(JST)で現在時刻を取得する
         now = datetime.now(JST).replace(tzinfo=None)
         updated = False
         for item in scheduled_messages:
@@ -430,15 +391,38 @@ class ProtectorBot(commands.Bot):
                 channel = self.get_channel(item["channel_id"])
                 if channel:
                     try:
-                        await channel.send(
-                            f"📢 **【予約メッセージ】**\n{item['message']}"
-                        )
+                        await channel.send(item['message'])
                         item["sent"] = True
                         updated = True
                     except Exception as e:
                         print(f"予約メッセージの送信に失敗しました: {e}")
         if updated:
             save_cloud_data()
+
+    @tasks.loop(seconds=30)
+    async def check_meigen_queue(self):
+        global meigen_queue, last_meigen_sent_time
+        if not meigen_queue:
+            return
+
+        interval = bot_config.get("meigen_interval_sec", 3600)
+        current_epoch = time.time()
+
+        # 設定された時間間隔が経過しているかチェック
+        if current_epoch - last_meigen_sent_time >= interval:
+            meigen_ch_id = log_channels.get("meigen", 0)
+            meigen_ch = self.get_channel(meigen_ch_id)
+            if meigen_ch:
+                item = meigen_queue.pop(0) # 蓄積された中から順に取り出す
+                embed = discord.Embed(
+                    title="⭐ 迷言ピックアップ",
+                    description=f"「 {item['content']} 」",
+                    color=0x9B59B6
+                )
+                embed.add_field(name="発言者", value=item['author'], inline=True)
+                embed.add_field(name="獲得スター数", value=f"⭐ {item['stars']}", inline=True)
+                await meigen_ch.send(embed=embed)
+                last_meigen_sent_time = current_epoch
 
     @check_scheduled_messages.before_loop
     async def before_check(self):
@@ -464,6 +448,70 @@ async def on_member_join(member):
     if welcome_ch:
         msg = welcome_message_template.replace("{user}", member.mention)
         await welcome_ch.send(msg)
+
+# メッセージ編集履歴ログ対応
+@bot.event
+async def on_message_edit(before, after):
+    if before.author.bot or before.content == after.content:
+        return
+    audit_ch = bot.get_channel(log_channels.get("audit", 0))
+    if audit_ch:
+        embed = discord.Embed(title="✏️ メッセージ編集検知", color=0xF1C40F, timestamp=datetime.now())
+        embed.add_field(name="ユーザー", value=before.author.mention, inline=False)
+        embed.add_field(name="編集前", value=before.content or "(なし)", inline=False)
+        embed.add_field(name="編集後", value=after.content or "(なし)", inline=False)
+        embed.set_footer(text=f"チャンネル: #{before.channel.name}")
+        await audit_ch.send(embed=embed)
+
+@bot.event
+async def on_message_delete(message):
+    if message.author.bot:
+        return
+    audit_ch = bot.get_channel(log_channels.get("audit", 0))
+    if audit_ch:
+        embed = discord.Embed(title="🗑️ メッセージ削除検知", color=0xE74C3C, timestamp=datetime.now())
+        embed.add_field(name="ユーザー", value=message.author.mention, inline=False)
+        embed.add_field(name="内容", value=message.content or "(画像・埋め込み等)", inline=False)
+        embed.set_footer(text=f"チャンネル: #{message.channel.name}")
+        await audit_ch.send(embed=embed)
+
+# 新・迷言判定: ⭐リアクション数が閾値を超えたらキューへ蓄積
+@bot.event
+async def on_raw_reaction_add(payload):
+    if payload.emoji.name != "⭐":
+        return
+    
+    channel = bot.get_channel(payload.channel_id)
+    if not channel:
+        return
+    try:
+        message = await channel.fetch_message(payload.message_id)
+    except Exception:
+        return
+
+    if message.author.bot:
+        return
+
+    # そのメッセージの ⭐ リアクションの数をカウント
+    star_count = 0
+    for reaction in message.reactions:
+        if str(reaction.emoji) == "⭐":
+            star_count = reaction.count
+            break
+
+    threshold = bot_config.get("meigen_star_threshold", 3)
+    if star_count >= threshold:
+        # まだキューやリストに同じメッセージ内容が登録されていなければ追加
+        content_text = message.content
+        if content_text and not any(m['content'] == content_text for m in meigen_queue) and content_text not in meigen_list:
+            meigen_queue.append({
+                "content": content_text,
+                "author": message.author.mention,
+                "stars": star_count
+            })
+            if content_text not in meigen_list:
+                meigen_list.append(content_text)
+                save_cloud_data()
 
 @bot.event
 async def on_message(message):
@@ -516,25 +564,7 @@ async def on_message(message):
             pass
         return
 
-    # 3. 迷言判定
-    weird_level = evaluate_weirdness(message.content)
-    if weird_level > 0:
-        if message.content not in meigen_list:
-            meigen_list.append(message.content)
-            save_cloud_data()
-            meigen_ch = bot.get_channel(log_channels.get("meigen", 0))
-            if meigen_ch:
-                stars = "⭐" * weird_level
-                embed = discord.Embed(
-                    title="🤪 迷言を自動検知しました",
-                    description=f"「 {message.content} 」",
-                    color=0x9B59B6
-                )
-                embed.add_field(name="発言者", value=author.mention, inline=True)
-                embed.add_field(name="おかしさ度", value=f"{stars} ({weird_level}/5)", inline=True)
-                await meigen_ch.send(embed=embed)
-
-    # 4. レベリング判定 (EXP付与)
+    # 3. レベリング判定 (EXP付与)
     min_len = bot_config.get("exp_min_len", 5)
     cooldown = bot_config.get("exp_cooldown", 60)
     last_time = user_message_time.get(u_id, 0)
@@ -613,7 +643,7 @@ async def slash_rank(interaction: discord.Interaction):
 @app_commands.guild_only()
 async def slash_meigen(interaction: discord.Interaction):
     if not meigen_list:
-        await interaction.response.send_message("💬 まだ迷言が登録されていません！", ephemeral=True)
+        await interaction.response.send_message("💬 まだ迷言が登録されていません！(⭐スターリアクションで登録されます)", ephemeral=True)
     else:
         selected = random.choice(meigen_list)
         embed = discord.Embed(title="💬 本日の迷言ピックアップ", description=f"「 {selected} 」", color=0x9B59B6)

@@ -3,659 +3,484 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>HER Group Protector</title>
-    <!-- Chart.jsの読み込み -->
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <title>HER Group Protector - 超詳細管理ダッシュボード</title>
     <style>
-        :root, [data-theme="navy"] {
-            --bg-color: #0f111a;
-            --card-bg: #1a1d2d;
-            --card-inner: #24283b;
+        :root {
+            --bg-color: #0b0d14;
+            --card-bg: #151823;
+            --card-inner: #1e2230;
             --primary: #5865f2;
+            --success: #2ecc71;
+            --danger: #e74c3c;
             --text-main: #ffffff;
             --text-sub: #949ba4;
-            --border-color: #2b2f48;
-            --accent-green: #2ecc71;
-        }
-
-        [data-theme="black"] {
-            --bg-color: #000000;
-            --card-bg: #121212;
-            --card-inner: #1e1e1e;
-            --primary: #5865f2;
-            --text-main: #ffffff;
-            --text-sub: #a0a0a0;
-            --border-color: #2c2c2c;
-            --accent-green: #2ecc71;
-        }
-
-        [data-theme="white"] {
-            --bg-color: #f5f6f8;
-            --card-bg: #ffffff;
-            --card-inner: #f0f2f5;
-            --primary: #5865f2;
-            --text-main: #111827;
-            --text-sub: #6b7280;
-            --border-color: #e5e7eb;
-            --accent-green: #10b981;
+            --border-color: #272a38;
         }
 
         body {
-            margin: 0;
-            padding: 20px;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
             background-color: var(--bg-color);
             color: var(--text-main);
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            margin: 0;
+            padding: 20px;
             display: flex;
             justify-content: center;
-            transition: background-color 0.3s, color 0.3s;
         }
 
         .container {
             width: 100%;
-            max-width: 800px;
+            max-width: 950px;
         }
 
         .header {
             text-align: center;
+            margin-bottom: 24px;
+        }
+
+        .header h1 {
+            font-size: 1.6rem;
+            margin: 0 0 8px 0;
+        }
+
+        .nav-links {
             margin-bottom: 20px;
-            font-size: 1.3rem;
+            text-align: center;
+        }
+
+        .nav-links a {
+            color: var(--primary);
+            text-decoration: none;
             font-weight: bold;
+            margin: 0 10px;
         }
 
-        .nav-tabs {
-            display: flex;
-            background: var(--card-bg);
-            padding: 4px;
-            border-radius: 12px;
-            margin-bottom: 16px;
-            border: 1px solid var(--border-color);
-            gap: 4px;
-        }
-
-        .tab-btn {
-            flex: 1;
-            padding: 10px;
-            border: none;
-            background: transparent;
-            color: var(--text-sub);
-            border-radius: 8px;
-            font-weight: bold;
-            font-size: 0.85rem;
-            cursor: pointer;
-        }
-
-        .tab-btn.active {
-            background: var(--primary);
-            color: white;
-        }
-
-        .page-section {
-            display: none;
-        }
-
-        .page-section.active {
-            display: block;
+        .nav-links a:hover {
+            text-decoration: underline;
         }
 
         .card {
             background: var(--card-bg);
             border-radius: 12px;
-            padding: 16px;
-            margin-bottom: 16px;
+            padding: 20px;
+            margin-bottom: 20px;
             border: 1px solid var(--border-color);
-            transition: background-color 0.3s, border-color 0.3s;
         }
 
         .card-title {
-            font-size: 0.85rem;
+            font-size: 1.05rem;
             color: var(--text-sub);
-            margin-bottom: 12px;
+            margin-bottom: 16px;
+            font-weight: bold;
+            border-bottom: 1px solid var(--border-color);
+            padding-bottom: 8px;
             display: flex;
             align-items: center;
-            gap: 6px;
+            gap: 8px;
+        }
+
+        .grid-2 {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 16px;
+        }
+
+        .grid-3 {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 12px;
+        }
+
+        @media (max-width: 700px) {
+            .grid-2, .grid-3 { grid-template-columns: 1fr; }
+        }
+
+        label {
+            display: block;
+            font-size: 0.85rem;
+            color: var(--text-sub);
+            margin-bottom: 6px;
             font-weight: bold;
         }
 
-        select, button, input, textarea {
+        input[type="text"], input[type="number"], select, textarea {
             width: 100%;
-            padding: 12px;
+            padding: 10px 12px;
             border-radius: 8px;
             border: 1px solid var(--border-color);
             background-color: var(--card-inner);
             color: var(--text-main);
             font-size: 0.95rem;
             box-sizing: border-box;
-            transition: background-color 0.3s, color 0.3s;
-        }
-
-        .status-badge {
-            margin-top: 10px;
-            font-size: 0.85rem;
-            color: var(--accent-green);
-        }
-
-        .grid-2 {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 10px;
-        }
-
-        .dashboard-grid {
-            display: grid;
-            grid-template-columns: 1fr;
-            gap: 12px;
-        }
-
-        @media (min-width: 768px) {
-            .dashboard-grid {
-                grid-template-columns: 1fr 1fr;
-            }
-        }
-
-        .form-group {
             margin-bottom: 16px;
         }
 
-        .form-group label {
-            display: block;
-            font-size: 0.85rem;
-            color: var(--text-sub);
-            margin-bottom: 6px;
-        }
+        textarea { resize: vertical; }
 
-        .save-btn {
-            background-color: var(--primary);
-            color: white;
-            font-weight: bold;
-            border: none;
-            cursor: pointer;
-            margin-top: 10px;
-        }
-
-        .setting-row {
+        .checkbox-group {
             display: flex;
-            justify-content: space-between;
             align-items: center;
-            margin-bottom: 12px;
-        }
-
-        .setting-label {
-            font-size: 0.85rem;
-            color: var(--text-main);
-        }
-
-        .status-grid {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
             gap: 10px;
-        }
-
-        .status-item {
+            margin-bottom: 16px;
             background: var(--card-inner);
-            padding: 12px;
+            padding: 10px 14px;
             border-radius: 8px;
             border: 1px solid var(--border-color);
         }
 
-        .status-value {
-            font-size: 1.2rem;
+        .checkbox-group input[type="checkbox"] {
+            width: 18px;
+            height: 18px;
+            accent-color: var(--primary);
+            cursor: pointer;
+        }
+
+        .checkbox-group label {
+            margin-bottom: 0;
+            color: var(--text-main);
+            cursor: pointer;
+        }
+
+        .btn-save {
+            background: var(--success);
+            color: white;
+            border: none;
+            padding: 14px 20px;
+            border-radius: 8px;
+            cursor: pointer;
             font-weight: bold;
-            margin-top: 4px;
+            width: 100%;
+            font-size: 1.1rem;
+            transition: background 0.2s, transform 0.1s;
+        }
+
+        .btn-save:hover {
+            background: #27ae60;
+        }
+
+        .status-badge {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 0.85rem;
+            font-weight: bold;
+            background: #1e2230;
+            color: var(--success);
+            border: 1px solid var(--border-color);
         }
     </style>
 </head>
 <body>
-
-<div class="container">
-    <div class="header">
-        🛡️ HER Group Protector
-    </div>
-
-    <div class="nav-tabs">
-        <button class="tab-btn active" onclick="switchTab('home')">🏠 ホーム</button>
-        <button class="tab-btn" onclick="switchTab('settings')">⚙️ 設定</button>
-        <button class="tab-btn" onclick="switchTab('logs')">📜 実行履歴</button>
-    </div>
-
-    <!-- 個人設定 -->
-    <div class="card">
-        <div class="card-title">👤 個人設定 (表示スタイル)</div>
-        <div class="setting-row">
-            <span class="setting-label">🎨 カラーテーマ</span>
-            <select id="user-theme-select" style="width: auto; padding: 6px 12px;" onchange="changeTheme(this.value)">
-                <option value="navy">標準 (ダークネイビー)</option>
-                <option value="black">真っ黒 (ピュアブラック)</option>
-                <option value="white">真っ白 (ライトモード)</option>
-            </select>
-        </div>
-    </div>
-
-    <!-- サーバー選択 -->
-    <div class="card">
-        <div class="card-title">🌐 管理するサーバーを選択</div>
-        <select id="server-select" onchange="loadGuildChannels()">
-            <!-- SERVER_OPTIONS -->
-        </select>
-        <div class="status-badge" id="bot-status-text">
-            🟢 Botオンライン (HER Group Protector BOT)
-        </div>
-    </div>
-
-    <!-- 🏠 ホーム タブ -->
-    <div id="tab-home" class="page-section active">
-        <!-- グラフコントロール -->
-        <div class="card">
-            <div class="card-title">🎛️ モニタリング・コントロール</div>
-            <div class="grid-2">
-                <div class="form-group" style="margin-bottom: 0;">
-                    <label>更新時間</label>
-                    <select id="update-interval" onchange="changeUpdateInterval()">
-                        <option value="1000" selected>1秒</option>
-                        <option value="3000">3秒</option>
-                        <option value="5000">5秒</option>
-                        <option value="10000">10秒</option>
-                    </select>
-                </div>
-                <div class="form-group" style="margin-bottom: 0;">
-                    <label>過去の記録（グラフ横幅）</label>
-                    <select id="history-range" onchange="changeHistoryRange()">
-                        <option value="10" selected>10個分 (10秒)</option>
-                        <option value="30">30個分 (30秒)</option>
-                        <option value="60">60個分 (1分)</option>
-                    </select>
-                </div>
+    <div class="container">
+        <div class="header">
+            <h1>🛡️ HER Group Protector 超詳細管理ダッシュボード</h1>
+            <div class="status-badge" id="botStatus">ステータス読込中...</div>
+            <div class="nav-links" style="margin-top: 12px;">
+                <a href="/schedule.html">📅 メッセージ予約管理へ移動</a>
             </div>
         </div>
 
-        <!-- グラフエリア -->
-        <div class="dashboard-grid">
+        <form id="settingsForm">
+            <!-- 0. Bot基本動作設定 -->
             <div class="card">
-                <div class="card-title">📈 CPU使用率</div>
-                <canvas id="cpu-chart"></canvas>
-            </div>
-            <div class="card">
-                <div class="card-title">📈 メモリ使用率</div>
-                <canvas id="memory-chart"></canvas>
-            </div>
-            <div class="card" style="grid-column: 1 / -1;">
-                <div class="card-title">📈 応答時間</div>
-                <canvas id="response-time-chart"></canvas>
-            </div>
-        </div>
-
-        <div class="card">
-            <div class="card-title">📊 システムステータス数値</div>
-            <div class="status-grid">
-                <div class="status-item">
-                    <div style="font-size:0.75rem; color:var(--text-sub);">稼働時間</div>
-                    <div class="status-value" id="stat-uptime">0時間 0分</div>
-                </div>
-                <div class="status-item">
-                    <div style="font-size:0.75rem; color:var(--text-sub);">応答速度 (Ping)</div>
-                    <div class="status-value" id="stat-ping">0 ms</div>
-                </div>
-                <div class="status-item">
-                    <div style="font-size:0.75rem; color:var(--text-sub);">NG検知数</div>
-                    <div class="status-value" id="stat-ng">0 件</div>
-                </div>
-                <div class="status-item">
-                    <div style="font-size:0.75rem; color:var(--text-sub);">登録迷言数</div>
-                    <div class="status-value" id="stat-meigen">0 件</div>
-                </div>
-            </div>
-        </div>
-
-        <div class="card">
-            <div class="card-title">📅 メッセージ予約管理 (上層部共有用)</div>
-            <button onclick="window.location.href='schedule.html'" class="save-btn" style="background: var(--primary);">
-                予約管理画面を開く（上層部リンク発行用） ➔
-            </button>
-        </div>
-
-        <div class="card">
-            <div class="card-title">⚙️ 設定メニュー</div>
-            <button onclick="switchTab('settings')" class="save-btn" style="background: var(--card-inner); border: 1px solid var(--border-color); color: var(--text-main);">
-                詳細設定画面を開く ➔
-            </button>
-        </div>
-    </div>
-
-    <!-- ⚙️ 設定 タブ -->
-    <div id="tab-settings" class="page-section">
-        <form id="setting-form">
-            <!-- 🌙 サイレントモード設定 -->
-            <div class="card">
-                <div class="card-title">🌙 サイレントモード（通知オフ時間帯）</div>
-                <div class="form-group">
-                    <label>モード選択</label>
-                    <select id="silent-mode">
-                        <option value="none">無効</option>
-                        <option value="all">すべての通知を停止</option>
-                    </select>
-                </div>
+                <div class="card-title">🤖 Bot プレゼンス・基本動作設定</div>
                 <div class="grid-2">
-                    <div class="form-group">
-                        <label>開始時刻</label>
-                        <input type="time" id="silent-start" value="22:00">
+                    <div>
+                        <label for="bot_activity_type">アクティビティ種別</label>
+                        <select id="bot_activity_type">
+                            <option value="playing">プレイ中 (Playing)</option>
+                            <option value="streaming">配信中 (Streaming)</option>
+                            <option value="listening">聴いている (Listening)</option>
+                            <option value="watching">視聴中 (Watching)</option>
+                            <option value="competing">競技中 (Competing)</option>
+                        </select>
                     </div>
-                    <div class="form-group">
-                        <label>終了時刻</label>
-                        <input type="time" id="silent-end" value="07:00">
+                    <div>
+                        <label for="bot_status_text">ステータス表示テキスト</label>
+                        <input type="text" id="bot_status_text" placeholder="例: サーバーを見守り中">
                     </div>
                 </div>
             </div>
 
-            <!-- 送信チャンネル設定 -->
+            <!-- 1. チャンネル割り当て -->
             <div class="card">
-                <div class="card-title">📫 機能＆送信チャンネル設定</div>
-                
-                <div class="form-group">
-                    <label>💬 ようこそメッセージ本文 (`{user}` でメンション)</label>
-                    <textarea id="welcome-msg" rows="2" placeholder="ようこそ {user} さん！"></textarea>
-                </div>
-
-                <div class="form-group">
-                    <label>👋 ようこそメッセージ送信先</label>
-                    <select id="welcome-ch" class="ch-select"><option value="0">（未設定 / 無効）</option></select>
-                </div>
-
-                <div class="form-group">
-                    <label>🎉 レベルアップ通知先</label>
-                    <select id="level-ch" class="ch-select"><option value="0">（未設定 / 無効）</option></select>
-                </div>
-
-                <div class="form-group">
-                    <label>🚨 NGワード警報送信先</label>
-                    <select id="security-ch" class="ch-select"><option value="0">（未設定 / 無効）</option></select>
-                </div>
-
-                <div class="form-group">
-                    <label>🤪 迷言通知送信先</label>
-                    <select id="meigen-ch" class="ch-select"><option value="0">（未設定 / 無効）</option></select>
-                </div>
-            </div>
-
-            <!-- 🚫 NGワード設定 -->
-            <div class="card">
-                <div class="card-title">🚫 NGワード管理</div>
-                <div class="form-group">
-                    <label>対象の単語 (カンマ `,` 区切りで複数指定)</label>
-                    <textarea id="ng-words" rows="3" placeholder="スパムテスト, 荒らし, ngword"></textarea>
-                </div>
-            </div>
-
-            <!-- ⚡ スパム対策設定 -->
-            <div class="card">
-                <div class="card-title">⚡ スパムメッセージ対策</div>
+                <div class="card-title">📌 チャンネルルーティング詳細設定</div>
                 <div class="grid-2">
-                    <div class="form-group">
-                        <label>時間枠 (秒)</label>
-                        <input type="number" id="spam-window-sec" value="5">
+                    <div>
+                        <label for="welcome_ch">入退室通知チャンネル</label>
+                        <select id="welcome_ch" class="ch-select"><option value="">なし</option></select>
                     </div>
-                    <div class="form-group">
-                        <label>最大許容数</label>
-                        <input type="number" id="spam-max-msgs" value="5">
-                    </div>
-                </div>
-                <div class="form-group">
-                    <label>1メッセージ内の最大メンション許容数</label>
-                    <input type="number" id="spam-max-mentions" value="5">
-                </div>
-            </div>
-
-            <!-- 📈 レベリング設定 -->
-            <div class="card">
-                <div class="card-title">📈 レベリング・EXP付与設定</div>
-                <div class="grid-2">
-                    <div class="form-group">
-                        <label>最小付与EXP</label>
-                        <input type="number" id="exp-min" value="10">
-                    </div>
-                    <div class="form-group">
-                        <label>最大付与EXP</label>
-                        <input type="number" id="exp-max" value="25">
+                    <div>
+                        <label for="level_ch">レベルアップ通知チャンネル</label>
+                        <select id="level_ch" class="ch-select"><option value="">なし</option></select>
                     </div>
                 </div>
                 <div class="grid-2">
-                    <div class="form-group">
-                        <label>クールダウン (秒)</label>
-                        <input type="number" id="exp-cooldown" value="60">
+                    <div>
+                        <label for="audit_ch">監査ログ（メッセージ変更・削除）</label>
+                        <select id="audit_ch" class="ch-select"><option value="">なし</option></select>
                     </div>
-                    <div class="form-group">
-                        <label>最小文字数</label>
-                        <input type="number" id="exp-min-len" value="5">
+                    <div>
+                        <label for="security_ch">セキュリティアラート通知</label>
+                        <select id="security_ch" class="ch-select"><option value="">なし</option></select>
                     </div>
                 </div>
-                <div class="form-group">
-                    <label>VC通話 1分あたりの獲得EXP</label>
-                    <input type="number" id="vc-exp" value="5">
+                <div>
+                    <label for="meigen_ch">迷言・名言自動ピックアップ通知</label>
+                    <select id="meigen_ch" class="ch-select"><option value="">なし</option></select>
                 </div>
             </div>
 
-            <button type="button" class="save-btn" id="save-settings">すべての設定を保存する</button>
+            <!-- 2. ウェルカムメッセージ -->
+            <div class="card">
+                <div class="card-title">👋 ウェルカムメッセージ詳細設定</div>
+                <div class="checkbox-group">
+                    <input type="checkbox" id="welcome_enabled">
+                    <label for="welcome_enabled">入退室通知・ウェルカムメッセージ機能を有効にする</label>
+                </div>
+                <label for="welcome_msg">挨拶文テンプレート ({user}: メンション, {server}: サーバー名, {count}: メンバー数)</label>
+                <textarea id="welcome_msg" rows="3"></textarea>
+            </div>
+
+            <!-- 3. セキュリティ ＆ スパム対策 -->
+            <div class="card">
+                <div class="card-title">🚨 セキュリティ ＆ スパム厳格ガード設定</div>
+                <label for="ng_words">NGワードリスト (カンマ区切りで複数指定)</label>
+                <textarea id="ng_words" rows="2" placeholder="例: アフィ,スパム,荒らし"></textarea>
+
+                <div class="grid-2">
+                    <div>
+                        <label for="ng_word_action">NGワード検知時のペナルティ</label>
+                        <select id="ng_word_action">
+                            <option value="delete">メッセージ削除のみ</option>
+                            <option value="delete_warn">削除 ＋ 警告メッセージ送信</option>
+                            <option value="timeout">削除 ＋ タイムアウト (一時ミュート)</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label for="timeout_duration_sec">タイムアウト秒数 (ペナルティ時)</label>
+                        <input type="number" id="timeout_duration_sec" min="10" value="60">
+                    </div>
+                </div>
+
+                <div class="grid-3">
+                    <div>
+                        <label for="spam_max_msgs">連続投稿制限 (メッセージ数)</label>
+                        <input type="number" id="spam_max_msgs" min="2" max="30">
+                    </div>
+                    <div>
+                        <label for="spam_window_sec">判定時間ウィンドウ (秒)</label>
+                        <input type="number" id="spam_window_sec" min="1" max="30">
+                    </div>
+                    <div>
+                        <label for="spam_max_mentions">最大メンション数制限</label>
+                        <input type="number" id="spam_max_mentions" min="1" max="100">
+                    </div>
+                </div>
+            </div>
+
+            <!-- 4. レベリング ＆ VC報酬 -->
+            <div class="card">
+                <div class="card-title">⭐ レベルシステム ＆ VC報酬 超詳細設定</div>
+                <div class="grid-2">
+                    <div>
+                        <label for="exp_min">テキストXP 獲得量 (最小)</label>
+                        <input type="number" id="exp_min" min="0">
+                    </div>
+                    <div>
+                        <label for="exp_max">テキストXP 獲得量 (最大)</label>
+                        <input type="number" id="exp_max" min="1">
+                    </div>
+                </div>
+                <div class="grid-3">
+                    <div>
+                        <label for="exp_min_len">XP対象の最低文字数</label>
+                        <input type="number" id="exp_min_len" min="1">
+                    </div>
+                    <div>
+                        <label for="exp_cooldown">連続獲得クールダウン (秒)</label>
+                        <input type="number" id="exp_cooldown" min="0">
+                    </div>
+                    <div>
+                        <label for="level_design">レベルアップ通知の演出</label>
+                        <select id="level_design">
+                            <option value="text">テキストのみ</option>
+                            <option value="embed_simple">シンプルな埋め込み</option>
+                            <option value="embed_card">リッチカード埋め込み</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div style="margin-top: 12px; border-top: 1px solid var(--border-color); padding-top: 12px;">
+                    <div class="grid-2">
+                        <div>
+                            <label for="vc_exp">VC通話 1分あたりのXP報酬</label>
+                            <input type="number" id="vc_exp" min="0">
+                        </div>
+                        <div style="display: flex; align-items: flex-end;">
+                            <div class="checkbox-group" style="width: 100%; margin-bottom: 0; height: 41px; box-sizing: border-box;">
+                                <input type="checkbox" id="vc_exclude_muted">
+                                <label for="vc_exclude_muted">マイクミュート・スピーカーオフ時はXP除外</label>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 5. 迷言システム（期間・集計設定を追加） -->
+            <div class="card">
+                <div class="card-title">🤪 迷言・名言自動ピックアップ詳細設定</div>
+                <div class="checkbox-group">
+                    <input type="checkbox" id="meigen_enabled">
+                    <label for="meigen_enabled">⭐ リアクションによる迷言自動ピックアップ機能を有効にする</label>
+                </div>
+
+                <div class="grid-2">
+                    <div>
+                        <label for="meigen_star_threshold">迷言認定に必要な「⭐」リアクション数</label>
+                        <input type="number" id="meigen_star_threshold" min="1">
+                    </div>
+                    <div>
+                        <label for="meigen_period_mode">迷言を溜め込む期間・サイクル</label>
+                        <select id="meigen_period_mode">
+                            <option value="daily">毎日（24時間ごとに集計・投稿）</option>
+                            <option value="weekly">毎週（1週間ごとに集計・投稿）</option>
+                            <option value="monthly">毎月（1ヶ月ごとに集計・投稿）</option>
+                            <option value="interval">指定秒数ごとに自動投稿</option>
+                            <option value="manual">期限なし（手動リセットまで蓄積）</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="grid-2">
+                    <div>
+                        <label for="meigen_interval_sec">自動投稿の間隔 (期間モードが「指定秒数」の場合)</label>
+                        <input type="number" id="meigen_interval_sec" min="60">
+                    </div>
+                    <div>
+                        <label for="meigen_reset_time">集計リセット・発表時刻 (例: 00:00 または 21:00)</label>
+                        <input type="text" id="meigen_reset_time" placeholder="00:00">
+                    </div>
+                </div>
+            </div>
+
+            <button type="button" class="btn-save" onclick="saveSettings()">💾 すべての超詳細設定を保存する</button>
         </form>
     </div>
 
-    <!-- 📜 実行履歴 タブ -->
-    <div id="tab-logs" class="page-section">
-        <div class="card">
-            <div class="card-title">📜 実行履歴</div>
-            <p style="color: var(--text-sub); font-size: 0.85rem;">直近の自動処理履歴です。</p>
-        </div>
-    </div>
-</div>
+    <script>
+        let channelsData = [];
 
-<script>
-    function changeTheme(themeName) {
-        document.documentElement.setAttribute('data-theme', themeName);
-    }
+        async function init() {
+            try {
+                const statusRes = await fetch('/api/status');
+                const statusData = await statusRes.json();
+                document.getElementById('botStatus').textContent = statusData.online ? `🟢 稼働中 (${statusData.bot_name})` : '🔴 停止中';
 
-    function switchTab(tabName) {
-        document.querySelectorAll('.page-section').forEach(el => el.classList.remove('active'));
-        document.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('active'));
+                const chRes = await fetch('/api/channels');
+                const chJson = await chRes.json();
+                channelsData = chJson.channels || [];
 
-        if (tabName === 'home') {
-            document.getElementById('tab-home').classList.add('active');
-            document.querySelectorAll('.tab-btn')[0].classList.add('active');
-        } else if (tabName === 'settings') {
-            document.getElementById('tab-settings').classList.add('active');
-            document.querySelectorAll('.tab-btn')[1].classList.add('active');
-        } else if (tabName === 'logs') {
-            document.getElementById('tab-logs').classList.add('active');
-            document.querySelectorAll('.tab-btn')[2].classList.add('active');
-        }
-    }
-
-    const commonOptions = {
-        responsive: true,
-        maintainAspectRatio: true,
-        animation: { duration: 300 },
-        scales: { y: { beginAtZero: true, max: 100 } }
-    };
-
-    function generateInitialData(maxCount) {
-        const labels = [];
-        const data = [];
-        for (let i = maxCount - 1; i >= 0; i--) {
-            labels.push(`-${i}s`);
-            data.push(Math.floor(Math.random() * 20) + 20);
-        }
-        return { labels, data };
-    }
-
-    let maxDataPoints = parseInt(document.getElementById('history-range').value);
-    const init = generateInitialData(maxDataPoints);
-
-    const cpuChart = new Chart(document.getElementById('cpu-chart').getContext('2d'), {
-        type: 'line',
-        data: { labels: [...init.labels], datasets: [{ label: 'CPU %', data: [...init.data], borderColor: '#5865f2', tension: 0.3, fill: false }] },
-        options: commonOptions
-    });
-
-    const memoryChart = new Chart(document.getElementById('memory-chart').getContext('2d'), {
-        type: 'line',
-        data: { labels: [...init.labels], datasets: [{ label: 'Memory %', data: [...init.data], borderColor: '#2ecc71', tension: 0.3, fill: false }] },
-        options: commonOptions
-    });
-
-    const responseTimeChart = new Chart(document.getElementById('response-time-chart').getContext('2d'), {
-        type: 'line',
-        data: { labels: [...init.labels], datasets: [{ label: 'Response (ms)', data: init.data.map(v => v * 4), borderColor: '#e67e22', tension: 0.3, fill: false }] },
-        options: { ...commonOptions, scales: { y: { beginAtZero: true, max: 500 } } }
-    });
-
-    function changeHistoryRange() {
-        maxDataPoints = parseInt(document.getElementById('history-range').value);
-        const newInit = generateInitialData(maxDataPoints);
-
-        [cpuChart, memoryChart, responseTimeChart].forEach((chart, index) => {
-            chart.data.labels = [...newInit.labels];
-            chart.data.datasets[0].data = index === 2 ? newInit.data.map(v => v * 4) : [...newInit.data];
-            chart.update();
-        });
-    }
-
-    function addDataToChart(chart, label, newData) {
-        chart.data.labels.push(label);
-        chart.data.datasets[0].data.push(newData);
-        if (chart.data.labels.length > maxDataPoints) {
-            chart.data.labels.shift();
-            chart.data.datasets[0].data.shift();
-        }
-        chart.update();
-    }
-
-    let updateTimer;
-    function startRealtimePolling() {
-        const interval = parseInt(document.getElementById('update-interval').value);
-        clearInterval(updateTimer);
-        updateTimer = setInterval(fetchAndUpdateData, interval);
-    }
-
-    function changeUpdateInterval() {
-        startRealtimePolling();
-    }
-
-    async function fetchAndUpdateData() {
-        const nowLabel = new Date().toLocaleTimeString();
-        try {
-            const res = await fetch('/api/status');
-            if (res.ok) {
-                const data = await res.json();
-                document.getElementById('stat-uptime').innerText = data.uptime;
-                document.getElementById('stat-ping').innerText = data.ping;
-                document.getElementById('stat-ng').innerText = data.ng_count;
-                document.getElementById('stat-meigen').innerText = data.meigen_count;
-
-                addDataToChart(cpuChart, nowLabel, data.cpu);
-                addDataToChart(memoryChart, nowLabel, data.memory);
-                addDataToChart(responseTimeChart, nowLabel, data.ping_raw);
-                return;
-            }
-        } catch (e) {}
-
-        addDataToChart(cpuChart, nowLabel, Math.floor(Math.random() * 30) + 15);
-        addDataToChart(memoryChart, nowLabel, Math.floor(Math.random() * 10) + 50);
-        addDataToChart(responseTimeChart, nowLabel, Math.floor(Math.random() * 100) + 100);
-    }
-
-    async function loadGuildChannels() {
-        const guildId = document.getElementById('server-select').value;
-        if (!guildId) return;
-
-        try {
-            const res = await fetch(`/api/channels?guild_id=${guildId}`);
-            if (res.ok) {
-                const data = await res.json();
                 document.querySelectorAll('.ch-select').forEach(select => {
-                    const currentVal = select.value;
-                    select.innerHTML = '<option value="0">（未設定 / 無効）</option>';
-                    data.channels.forEach(ch => {
+                    select.innerHTML = '<option value="">なし (指定なし)</option>';
+                    channelsData.forEach(ch => {
                         const opt = document.createElement('option');
                         opt.value = ch.id;
                         opt.textContent = `# ${ch.name}`;
                         select.appendChild(opt);
                     });
-                    select.value = currentVal;
                 });
+
+                const settingsRes = await fetch('/api/settings');
+                const settings = await settingsRes.json();
+
+                document.getElementById('bot_activity_type').value = settings.bot_activity_type || "playing";
+                document.getElementById('bot_status_text').value = settings.bot_status_text || "";
+                document.getElementById('welcome_ch').value = settings.welcome_ch || "";
+                document.getElementById('level_ch').value = settings.level_ch || "";
+                document.getElementById('audit_ch').value = settings.audit_ch || "";
+                document.getElementById('security_ch').value = settings.security_ch || "";
+                document.getElementById('meigen_ch').value = settings.meigen_ch || "";
+                
+                document.getElementById('welcome_enabled').checked = settings.welcome_enabled !== false;
+                document.getElementById('welcome_msg').value = settings.welcome_msg || "";
+                
+                document.getElementById('ng_words').value = settings.ng_words || "";
+                document.getElementById('ng_word_action').value = settings.ng_word_action || "delete_warn";
+                document.getElementById('timeout_duration_sec').value = settings.timeout_duration_sec || 60;
+                document.getElementById('spam_max_msgs').value = settings.spam_max_msgs || 5;
+                document.getElementById('spam_window_sec').value = settings.spam_window_sec || 5;
+                document.getElementById('spam_max_mentions').value = settings.spam_max_mentions || 5;
+                
+                document.getElementById('exp_min').value = settings.exp_min || 10;
+                document.getElementById('exp_max').value = settings.exp_max || 25;
+                document.getElementById('exp_min_len').value = settings.exp_min_len || 5;
+                document.getElementById('exp_cooldown').value = settings.exp_cooldown || 60;
+                document.getElementById('level_design').value = settings.level_design || "embed_card";
+                
+                document.getElementById('vc_exp').value = settings.vc_exp || 5;
+                document.getElementById('vc_exclude_muted').checked = settings.vc_exclude_muted !== false;
+                
+                document.getElementById('meigen_enabled').checked = settings.meigen_enabled !== false;
+                document.getElementById('meigen_star_threshold').value = settings.meigen_star_threshold || 3;
+                document.getElementById('meigen_period_mode').value = settings.meigen_period_mode || "weekly";
+                document.getElementById('meigen_interval_sec').value = settings.meigen_interval_sec || 3600;
+                document.getElementById('meigen_reset_time').value = settings.meigen_reset_time || "00:00";
+
+            } catch (e) {
+                console.error("初期化エラー:", e);
             }
-        } catch (e) {}
-    }
-
-    async function loadCurrentSettings() {
-        await loadGuildChannels();
-        try {
-            const res = await fetch('/api/settings');
-            if (res.ok) {
-                const data = await res.json();
-                if (data.silent_mode) document.getElementById('silent-mode').value = data.silent_mode;
-                if (data.silent_start) document.getElementById('silent-start').value = data.silent_start;
-                if (data.silent_end) document.getElementById('silent-end').value = data.silent_end;
-
-                if (data.welcome_msg) document.getElementById('welcome-msg').value = data.welcome_msg;
-                if (data.welcome_ch) document.getElementById('welcome-ch').value = data.welcome_ch;
-                if (data.level_ch) document.getElementById('level-ch').value = data.level_ch;
-                if (data.security_ch) document.getElementById('security-ch').value = data.security_ch;
-                if (data.meigen_ch) document.getElementById('meigen-ch').value = data.meigen_ch;
-
-                if (data.ng_words) document.getElementById('ng-words').value = data.ng_words;
-                if (data.spam_window_sec) document.getElementById('spam-window-sec').value = data.spam_window_sec;
-                if (data.spam_max_msgs) document.getElementById('spam-max-msgs').value = data.spam_max_msgs;
-                if (data.spam_max_mentions) document.getElementById('spam-max-mentions').value = data.spam_max_mentions;
-
-                if (data.exp_min) document.getElementById('exp-min').value = data.exp_min;
-                if (data.exp_max) document.getElementById('exp-max').value = data.exp_max;
-                if (data.exp_cooldown) document.getElementById('exp-cooldown').value = data.exp_cooldown;
-                if (data.exp_min_len) document.getElementById('exp-min-len').value = data.exp_min_len;
-                if (data.vc_exp) document.getElementById('vc-exp').value = data.vc_exp;
-            }
-        } catch (e) {}
-    }
-
-    document.getElementById('save-settings').addEventListener('click', async () => {
-        const payload = {
-            silent_mode: document.getElementById('silent-mode').value,
-            silent_start: document.getElementById('silent-start').value,
-            silent_end: document.getElementById('silent-end').value,
-            welcome_msg: document.getElementById('welcome-msg').value,
-            welcome_ch: document.getElementById('welcome-ch').value,
-            level_ch: document.getElementById('level-ch').value,
-            security_ch: document.getElementById('security-ch').value,
-            meigen_ch: document.getElementById('meigen-ch').value,
-            
-            ng_words: document.getElementById('ng-words').value,
-            spam_window_sec: document.getElementById('spam-window-sec').value,
-            spam_max_msgs: document.getElementById('spam-max-msgs').value,
-            spam_max_mentions: document.getElementById('spam-max-mentions').value,
-            
-            exp_min: document.getElementById('exp-min').value,
-            exp_max: document.getElementById('exp-max').value,
-            exp_cooldown: document.getElementById('exp-cooldown').value,
-            exp_min_len: document.getElementById('exp-min-len').value,
-            vc_exp: document.getElementById('vc-exp').value
-        };
-
-        try {
-            const res = await fetch('/api/settings', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload)
-            });
-
-            if (res.ok) {
-                alert('✅ すべての設定を保存・反映しました！');
-            } else {
-                alert('❌ 設定の保存に失敗しました。');
-            }
-        } catch (e) {
-            alert('❌ 通信エラーが発生しました。');
         }
-    });
 
-    startRealtimePolling();
-    loadCurrentSettings();
-</script>
+        async function saveSettings() {
+            const payload = {
+                bot_activity_type: document.getElementById('bot_activity_type').value,
+                bot_status_text: document.getElementById('bot_status_text').value,
+                welcome_ch: document.getElementById('welcome_ch').value,
+                level_ch: document.getElementById('level_ch').value,
+                audit_ch: document.getElementById('audit_ch').value,
+                security_ch: document.getElementById('security_ch').value,
+                meigen_ch: document.getElementById('meigen_ch').value,
+                welcome_enabled: document.getElementById('welcome_enabled').checked,
+                welcome_msg: document.getElementById('welcome_msg').value,
+                ng_words: document.getElementById('ng_words').value,
+                ng_word_action: document.getElementById('ng_word_action').value,
+                timeout_duration_sec: document.getElementById('timeout_duration_sec').value,
+                spam_max_msgs: document.getElementById('spam_max_msgs').value,
+                spam_window_sec: document.getElementById('spam_window_sec').value,
+                spam_max_mentions: document.getElementById('spam_max_mentions').value,
+                exp_min: document.getElementById('exp_min').value,
+                exp_max: document.getElementById('exp_max').value,
+                exp_min_len: document.getElementById('exp_min_len').value,
+                exp_cooldown: document.getElementById('exp_cooldown').value,
+                level_design: document.getElementById('level_design').value,
+                vc_exp: document.getElementById('vc_exp').value,
+                vc_exclude_muted: document.getElementById('vc_exclude_muted').checked,
+                meigen_enabled: document.getElementById('meigen_enabled').checked,
+                meigen_star_threshold: document.getElementById('meigen_star_threshold').value,
+                meigen_period_mode: document.getElementById('meigen_period_mode').value,
+                meigen_interval_sec: document.getElementById('meigen_interval_sec').value,
+                meigen_reset_time: document.getElementById('meigen_reset_time').value
+            };
 
+            try {
+                const res = await fetch('/api/settings', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                const result = await res.json();
+                if (res.ok && result.status === 'ok') {
+                    alert('✨ 迷言システムの期間設定を含むすべての設定を保存しました！');
+                } else {
+                    alert('❌ 保存に失敗しました: ' + (result.message || '不明なエラー'));
+                }
+            } catch (e) {
+                console.error("通信エラー:", e);
+                alert('❌ サーバーとの通信に失敗しました。');
+            }
+        }
+
+        init();
+    </script>
 </body>
 </html>
