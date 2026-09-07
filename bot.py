@@ -49,7 +49,7 @@ log_channels = {
     "meigen": 0
 }
 
-welcome_message_template = "ようこそ {user} さん！HER Group サーバーへ！"
+welcome_message_template = "ようこそ {user} さん！堀内鉄道へ！\n まずは認証チャンネルで認証を行ってください！"
 
 bot_config = {
     "ng_words": ["スパムテスト", "荒らし", "ngword"],
