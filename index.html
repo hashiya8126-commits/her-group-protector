@@ -3,7 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>HER Group Protector - 超詳細管理ダッシュボード</title>
+    <title>HER Group Protector - 統合コントロールパネル</title>
+    <!-- Chart.js 読み込み -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         :root {
             --bg-color: #0b0d14;
@@ -42,26 +44,38 @@
             margin: 0 0 8px 0;
         }
 
-        .nav-links {
-            margin-bottom: 20px;
-            text-align: center;
+        /* ページタブ切り替えボタン */
+        .tab-menu {
             display: flex;
             justify-content: center;
-            gap: 15px;
+            gap: 10px;
+            margin-bottom: 24px;
         }
 
-        .nav-links a {
-            color: var(--primary);
-            text-decoration: none;
-            font-weight: bold;
+        .tab-btn {
             background: var(--card-bg);
-            padding: 8px 16px;
-            border-radius: 8px;
+            color: var(--text-sub);
             border: 1px solid var(--border-color);
+            padding: 10px 20px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: bold;
+            font-size: 0.95rem;
+            transition: all 0.2s;
         }
 
-        .nav-links a:hover {
-            background: var(--card-inner);
+        .tab-btn.active {
+            background: var(--primary);
+            color: white;
+            border-color: var(--primary);
+        }
+
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
         }
 
         .card {
@@ -168,208 +182,323 @@
             color: var(--success);
             border: 1px solid var(--border-color);
         }
+
+        /* モニター画面用スタイル */
+        .chart-container {
+            position: relative;
+            height: 220px;
+            width: 100%;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+
+        .stat-box {
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 10px;
+            padding: 15px;
+            text-align: center;
+        }
+
+        .stat-value {
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: var(--success);
+            margin-top: 5px;
+        }
     </style>
 </head>
 <body>
     <div class="container">
         <div class="header">
-            <h1>🛡️ HER Group Protector 超詳細管理ダッシュボード</h1>
+            <h1>🛡️ HER Group Protector コントロールパネル</h1>
             <div class="status-badge" id="botStatus">ステータス読込中...</div>
-            <div class="nav-links" style="margin-top: 12px;">
-                <a href="/monitor.html">📊 システム・サーバーモニター (CPU/RAM/PING)</a>
-                <a href="/schedule.html">📅 メッセージ予約管理</a>
-            </div>
         </div>
 
-        <form id="settingsForm">
-            <!-- 0. Bot基本動作設定 -->
-            <div class="card">
-                <div class="card-title">🤖 Bot プレゼンス・基本動作設定</div>
-                <div class="grid-2">
-                    <div>
-                        <label for="bot_activity_type">アクティビティ種別</label>
-                        <select id="bot_activity_type">
-                            <option value="playing">プレイ中 (Playing)</option>
-                            <option value="streaming">配信中 (Streaming)</option>
-                            <option value="listening">聴いている (Listening)</option>
-                            <option value="watching">視聴中 (Watching)</option>
-                            <option value="competing">競技中 (Competing)</option>
-                        </select>
-                    </div>
-                    <div>
-                        <label for="bot_status_text">ステータス表示テキスト</label>
-                        <input type="text" id="bot_status_text" placeholder="例: サーバーを見守り中">
-                    </div>
-                </div>
-            </div>
+        <!-- タブ切り替えボタン -->
+        <div class="tab-menu">
+            <button class="tab-btn active" onclick="switchTab('settings', this)">⚙️ 詳細設定</button>
+            <button class="tab-btn" onclick="switchTab('monitor', this)">📊 システムモニター</button>
+        </div>
 
-            <!-- 1. チャンネル割り当て -->
-            <div class="card">
-                <div class="card-title">📌 チャンネルルーティング詳細設定</div>
-                <div class="grid-2">
-                    <div>
-                        <label for="welcome_ch">入退室通知チャンネル</label>
-                        <select id="welcome_ch" class="ch-select"><option value="">なし</option></select>
-                    </div>
-                    <div>
-                        <label for="level_ch">レベルアップ通知チャンネル</label>
-                        <select id="level_ch" class="ch-select"><option value="">なし</option></select>
-                    </div>
-                </div>
-                <div class="grid-2">
-                    <div>
-                        <label for="audit_ch">監査ログ（メッセージ変更・削除）</label>
-                        <select id="audit_ch" class="ch-select"><option value="">なし</option></select>
-                    </div>
-                    <div>
-                        <label for="security_ch">セキュリティアラート通知</label>
-                        <select id="security_ch" class="ch-select"><option value="">なし</option></select>
-                    </div>
-                </div>
-                <div>
-                    <label for="meigen_ch">迷言・名言自動ピックアップ通知</label>
-                    <select id="meigen_ch" class="ch-select"><option value="">なし</option></select>
-                </div>
-            </div>
-
-            <!-- 2. ウェルカムメッセージ -->
-            <div class="card">
-                <div class="card-title">👋 ウェルカムメッセージ詳細設定</div>
-                <div class="checkbox-group">
-                    <input type="checkbox" id="welcome_enabled">
-                    <label for="welcome_enabled">入退室通知・ウェルカムメッセージ機能を有効にする</label>
-                </div>
-                <label for="welcome_msg">挨拶文テンプレート ({user}: メンション, {server}: サーバー名, {count}: メンバー数)</label>
-                <textarea id="welcome_msg" rows="3"></textarea>
-            </div>
-
-            <!-- 3. セキュリティ ＆ スパム対策 -->
-            <div class="card">
-                <div class="card-title">🚨 セキュリティ ＆ スパム厳格ガード設定</div>
-                <label for="ng_words">NGワードリスト (カンマ区切りで複数指定)</label>
-                <textarea id="ng_words" rows="2" placeholder="例: アフィ,スパム,荒らし"></textarea>
-
-                <div class="grid-2">
-                    <div>
-                        <label for="ng_word_action">NGワード検知時のペナルティ</label>
-                        <select id="ng_word_action">
-                            <option value="delete">メッセージ削除のみ</option>
-                            <option value="delete_warn">削除 ＋ 警告メッセージ送信</option>
-                            <option value="timeout">削除 ＋ タイムアウト (一時ミュート)</option>
-                        </select>
-                    </div>
-                    <div>
-                        <label for="timeout_duration_sec">タイムアウト秒数 (ペナルティ時)</label>
-                        <input type="number" id="timeout_duration_sec" min="10" value="60">
-                    </div>
-                </div>
-
-                <div class="grid-3">
-                    <div>
-                        <label for="spam_max_msgs">連続投稿制限 (メッセージ数)</label>
-                        <input type="number" id="spam_max_msgs" min="2" max="30">
-                    </div>
-                    <div>
-                        <label for="spam_window_sec">判定時間ウィンドウ (秒)</label>
-                        <input type="number" id="spam_window_sec" min="1" max="30">
-                    </div>
-                    <div>
-                        <label for="spam_max_mentions">最大メンション数制限</label>
-                        <input type="number" id="spam_max_mentions" min="1" max="100">
-                    </div>
-                </div>
-            </div>
-
-            <!-- 4. レベリング ＆ VC報酬 -->
-            <div class="card">
-                <div class="card-title">⭐ レベルシステム ＆ VC報酬 超詳細設定</div>
-                <div class="grid-2">
-                    <div>
-                        <label for="exp_min">テキストXP 獲得量 (最小)</label>
-                        <input type="number" id="exp_min" min="0">
-                    </div>
-                    <div>
-                        <label for="exp_max">テキストXP 獲得量 (最大)</label>
-                        <input type="number" id="exp_max" min="1">
-                    </div>
-                </div>
-                <div class="grid-3">
-                    <div>
-                        <label for="exp_min_len">XP対象の最低文字数</label>
-                        <input type="number" id="exp_min_len" min="1">
-                    </div>
-                    <div>
-                        <label for="exp_cooldown">連続獲得クールダウン (秒)</label>
-                        <input type="number" id="exp_cooldown" min="0">
-                    </div>
-                    <div>
-                        <label for="level_design">レベルアップ通知の演出</label>
-                        <select id="level_design">
-                            <option value="text">テキストのみ</option>
-                            <option value="embed_simple">シンプルな埋め込み</option>
-                            <option value="embed_card">リッチカード埋め込み</option>
-                        </select>
-                    </div>
-                </div>
-
-                <div style="margin-top: 12px; border-top: 1px solid var(--border-color); padding-top: 12px;">
+        <!-- ① 設定タブ -->
+        <div id="tab-settings" class="tab-content active">
+            <form id="settingsForm">
+                <div class="card">
+                    <div class="card-title">🤖 Bot プレゼンス・基本動作設定</div>
                     <div class="grid-2">
                         <div>
-                            <label for="vc_exp">VC通話 1分あたりのXP報酬</label>
-                            <input type="number" id="vc_exp" min="0">
+                            <label for="bot_activity_type">アクティビティ種別</label>
+                            <select id="bot_activity_type">
+                                <option value="playing">プレイ中 (Playing)</option>
+                                <option value="streaming">配信中 (Streaming)</option>
+                                <option value="listening">聴いている (Listening)</option>
+                                <option value="watching">視聴中 (Watching)</option>
+                                <option value="competing">競技中 (Competing)</option>
+                            </select>
                         </div>
-                        <div style="display: flex; align-items: flex-end;">
-                            <div class="checkbox-group" style="width: 100%; margin-bottom: 0; height: 41px; box-sizing: border-box;">
-                                <input type="checkbox" id="vc_exclude_muted">
-                                <label for="vc_exclude_muted">マイクミュート・スピーカーオフ時はXP除外</label>
+                        <div>
+                            <label for="bot_status_text">ステータス表示テキスト</label>
+                            <input type="text" id="bot_status_text" placeholder="例: サーバーを見守り中">
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="card-title">📌 チャンネルルーティング詳細設定</div>
+                    <div class="grid-2">
+                        <div>
+                            <label for="welcome_ch">入退室通知チャンネル</label>
+                            <select id="welcome_ch" class="ch-select"><option value="">なし</option></select>
+                        </div>
+                        <div>
+                            <label for="level_ch">レベルアップ通知チャンネル</label>
+                            <select id="level_ch" class="ch-select"><option value="">なし</option></select>
+                        </div>
+                    </div>
+                    <div class="grid-2">
+                        <div>
+                            <label for="audit_ch">監査ログ（メッセージ変更・削除）</label>
+                            <select id="audit_ch" class="ch-select"><option value="">なし</option></select>
+                        </div>
+                        <div>
+                            <label for="security_ch">セキュリティアラート通知</label>
+                            <select id="security_ch" class="ch-select"><option value="">なし</option></select>
+                        </div>
+                    </div>
+                    <div>
+                        <label for="meigen_ch">迷言・名言自動ピックアップ通知</label>
+                        <select id="meigen_ch" class="ch-select"><option value="">なし</option></select>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="card-title">👋 ウェルカムメッセージ詳細設定</div>
+                    <div class="checkbox-group">
+                        <input type="checkbox" id="welcome_enabled" checked>
+                        <label for="welcome_enabled">入退室通知・ウェルカムメッセージ機能を有効にする</label>
+                    </div>
+                    <label for="welcome_msg">挨拶文テンプレート</label>
+                    <textarea id="welcome_msg" rows="3">ようこそ {user} さん！堀内鉄道へ！
+まずは認証チャンネルで認証を行ってください！</textarea>
+                </div>
+
+                <div class="card">
+                    <div class="card-title">🚨 セキュリティ ＆ スパム厳格ガード設定</div>
+                    <label for="ng_words">NGワードリスト (カンマ区切りで複数指定)</label>
+                    <textarea id="ng_words" rows="2" placeholder="例: アフィ,スパム,荒らし"></textarea>
+                    <div class="grid-2">
+                        <div>
+                            <label for="ng_word_action">NGワード検知時のペナルティ</label>
+                            <select id="ng_word_action">
+                                <option value="delete">メッセージ削除のみ</option>
+                                <option value="delete_warn">削除 ＋ 警告メッセージ送信</option>
+                                <option value="timeout">削除 ＋ タイムアウト (一時ミュート)</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label for="timeout_duration_sec">タイムアウト秒数 (ペナルティ時)</label>
+                            <input type="number" id="timeout_duration_sec" min="10" value="60">
+                        </div>
+                    </div>
+                    <div class="grid-3">
+                        <div>
+                            <label for="spam_max_msgs">連続投稿制限 (メッセージ数)</label>
+                            <input type="number" id="spam_max_msgs" min="2" max="30" value="5">
+                        </div>
+                        <div>
+                            <label for="spam_window_sec">判定時間ウィンドウ (秒)</label>
+                            <input type="number" id="spam_window_sec" min="1" max="30" value="5">
+                        </div>
+                        <div>
+                            <label for="spam_max_mentions">最大メンション数制限</label>
+                            <input type="number" id="spam_max_mentions" min="1" max="100" value="5">
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="card-title">⭐ レベルシステム ＆ VC報酬 超詳細設定</div>
+                    <div class="grid-2">
+                        <div>
+                            <label for="exp_min">テキストXP 獲得量 (最小)</label>
+                            <input type="number" id="exp_min" min="0" value="10">
+                        </div>
+                        <div>
+                            <label for="exp_max">テキストXP 獲得量 (最大)</label>
+                            <input type="number" id="exp_max" min="1" value="25">
+                        </div>
+                    </div>
+                    <div class="grid-3">
+                        <div>
+                            <label for="exp_min_len">XP対象の最低文字数</label>
+                            <input type="number" id="exp_min_len" min="1" value="5">
+                        </div>
+                        <div>
+                            <label for="exp_cooldown">連続獲得クールダウン (秒)</label>
+                            <input type="number" id="exp_cooldown" min="0" value="60">
+                        </div>
+                        <div>
+                            <label for="level_design">レベルアップ通知の演出</label>
+                            <select id="level_design">
+                                <option value="text">テキストのみ</option>
+                                <option value="embed_simple">シンプルな埋め込み</option>
+                                <option value="embed_card" selected>リッチカード埋め込み</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div style="margin-top: 12px; border-top: 1px solid var(--border-color); padding-top: 12px;">
+                        <div class="grid-2">
+                            <div>
+                                <label for="vc_exp">VC通話 1分あたりのXP報酬</label>
+                                <input type="number" id="vc_exp" min="0" value="5">
+                            </div>
+                            <div style="display: flex; align-items: flex-end;">
+                                <div class="checkbox-group" style="width: 100%; margin-bottom: 0; height: 41px; box-sizing: border-box;">
+                                    <input type="checkbox" id="vc_exclude_muted" checked>
+                                    <label for="vc_exclude_muted">マイクミュート時はXP除外</label>
+                                </div>
                             </div>
                         </div>
                     </div>
                 </div>
+
+                <div class="card">
+                    <div class="card-title">🤪 迷言・名言自動ピックアップ詳細設定</div>
+                    <div class="checkbox-group">
+                        <input type="checkbox" id="meigen_enabled" checked>
+                        <label for="meigen_enabled">⭐ リアクションによる迷言自動ピックアップ機能を有効にする</label>
+                    </div>
+                    <div class="grid-2">
+                        <div>
+                            <label for="meigen_star_threshold">迷言認定に必要な「⭐」数</label>
+                            <input type="number" id="meigen_star_threshold" min="1" value="3">
+                        </div>
+                        <div>
+                            <label for="meigen_period_mode">迷言を溜め込む期間・サイクル</label>
+                            <select id="meigen_period_mode">
+                                <option value="daily">毎日</option>
+                                <option value="weekly" selected>毎週</option>
+                                <option value="monthly">毎月</option>
+                                <option value="interval">指定秒数ごと</option>
+                                <option value="manual">手動リセットまで</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="grid-2">
+                        <div>
+                            <label for="meigen_interval_sec">自動投稿の間隔 (秒)</label>
+                            <input type="number" id="meigen_interval_sec" min="60" value="3600">
+                        </div>
+                        <div>
+                            <label for="meigen_reset_time">集計リセット・発表時刻</label>
+                            <input type="text" id="meigen_reset_time" value="00:00">
+                        </div>
+                    </div>
+                </div>
+
+                <button type="button" class="btn-save" onclick="saveSettings()">💾 すべての設定を保存する</button>
+            </form>
+        </div>
+
+        <!-- ② モニタータブ -->
+        <div id="tab-monitor" class="tab-content">
+            <div class="stats-grid">
+                <div class="stat-box">
+                    <div class="card-title">CPU 使用率</div>
+                    <div class="stat-value" id="cpuVal">-- %</div>
+                </div>
+                <div class="stat-box">
+                    <div class="card-title">RAM 使用率</div>
+                    <div class="stat-value" id="ramVal">-- %</div>
+                </div>
+                <div class="stat-box">
+                    <div class="card-title">Discord PING</div>
+                    <div class="stat-value" id="pingVal">-- ms</div>
+                </div>
             </div>
 
-            <!-- 5. 迷言システム -->
             <div class="card">
-                <div class="card-title">🤪 迷言・名言自動ピックアップ詳細設定</div>
-                <div class="checkbox-group">
-                    <input type="checkbox" id="meigen_enabled">
-                    <label for="meigen_enabled">⭐ リアクションによる迷言自動ピックアップ機能を有効にする</label>
-                </div>
-
-                <div class="grid-2">
-                    <div>
-                        <label for="meigen_star_threshold">迷言認定に必要な「⭐」リアクション数</label>
-                        <input type="number" id="meigen_star_threshold" min="1">
-                    </div>
-                    <div>
-                        <label for="meigen_period_mode">迷言を溜め込む期間・サイクル</label>
-                        <select id="meigen_period_mode">
-                            <option value="daily">毎日（24時間ごとに集計・投稿）</option>
-                            <option value="weekly">毎週（1週間ごとに集計・投稿）</option>
-                            <option value="monthly">毎月（1ヶ月ごとに集計・投稿）</option>
-                            <option value="interval">指定秒数ごとに自動投稿</option>
-                            <option value="manual">期限なし（手動リセットまで蓄積）</option>
-                        </select>
-                    </div>
-                </div>
-
-                <div class="grid-2">
-                    <div>
-                        <label for="meigen_interval_sec">自動投稿の間隔 (期間モードが「指定秒数」の場合)</label>
-                        <input type="number" id="meigen_interval_sec" min="60">
-                    </div>
-                    <div>
-                        <label for="meigen_reset_time">集計リセット・発表時刻 (例: 00:00 または 21:00)</label>
-                        <input type="text" id="meigen_reset_time" placeholder="00:00">
-                    </div>
-                </div>
+                <div class="card-title">💻 CPU & RAM 使用率推移 (%)</div>
+                <div class="chart-container"><canvas id="systemChart"></canvas></div>
             </div>
 
-            <button type="button" class="btn-save" onclick="saveSettings()">💾 すべての超詳細設定を保存する</button>
-        </form>
+            <div class="card">
+                <div class="card-title">📡 Discord PING 推移 (ms)</div>
+                <div class="chart-container"><canvas id="pingChart"></canvas></div>
+            </div>
+        </div>
     </div>
 
     <script>
+        // タブ切り替え処理
+        function switchTab(tabName, btnElement) {
+            document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+            document.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('active'));
+            
+            document.getElementById('tab-' + tabName).classList.add('active');
+            btnElement.classList.add('active');
+        }
+
+        // グラフ設定
+        const maxDataPoints = 20;
+        const timeLabels = [];
+        const systemCtx = document.getElementById('systemChart').getContext('2d');
+        const systemChart = new Chart(systemCtx, {
+            type: 'line',
+            data: {
+                labels: timeLabels,
+                datasets: [
+                    { label: 'CPU (%)', data: [], borderColor: '#3498db', backgroundColor: 'rgba(52, 152, 219, 0.1)', tension: 0.3, fill: true },
+                    { label: 'RAM (%)', data: [], borderColor: '#2ecc71', backgroundColor: 'rgba(46, 204, 113, 0.1)', tension: 0.3, fill: true }
+                ]
+            },
+            options: { responsive: true, maintainAspectRatio: false, scales: { y: { min: 0, max: 100 } } }
+        });
+
+        const pingCtx = document.getElementById('pingChart').getContext('2d');
+        const pingChart = new Chart(pingCtx, {
+            type: 'line',
+            data: {
+                labels: timeLabels,
+                datasets: [{ label: 'PING (ms)', data: [], borderColor: '#e74c3c', backgroundColor: 'rgba(231, 76, 60, 0.1)', tension: 0.3, fill: true }]
+            },
+            options: { responsive: true, maintainAspectRatio: false }
+        });
+
+        async function fetchMetrics() {
+            try {
+                const res = await fetch('/api/metrics');
+                const data = await res.json();
+                const nowStr = new Date().toLocaleTimeString();
+
+                if (timeLabels.length >= maxDataPoints) {
+                    timeLabels.shift();
+                    systemChart.data.datasets[0].data.shift();
+                    systemChart.data.datasets[1].data.shift();
+                    pingChart.data.datasets[0].data.shift();
+                }
+
+                timeLabels.push(nowStr);
+                systemChart.data.datasets[0].data.push(data.cpu || 0);
+                systemChart.data.datasets[1].data.push(data.ram || 0);
+                pingChart.data.datasets[0].data.push(data.ping || 0);
+
+                systemChart.update();
+                pingChart.update();
+
+                document.getElementById('cpuVal').textContent = (data.cpu || 0) + ' %';
+                document.getElementById('ramVal').textContent = (data.ram || 0) + ' %';
+                document.getElementById('pingVal').textContent = (data.ping || 0) + ' ms';
+            } catch (e) {}
+        }
+        setInterval(fetchMetrics, 3000);
+
         async function init() {
             try {
                 const statusRes = await fetch('/api/status');
@@ -393,36 +522,11 @@
                 const settingsRes = await fetch('/api/settings');
                 const settings = await settingsRes.json();
 
-                document.getElementById('bot_activity_type').value = settings.bot_activity_type || "playing";
-                document.getElementById('bot_status_text').value = settings.bot_status_text || "";
-                document.getElementById('welcome_ch').value = settings.welcome_ch || "";
-                document.getElementById('level_ch').value = settings.level_ch || "";
-                document.getElementById('audit_ch').value = settings.audit_ch || "";
-                document.getElementById('security_ch').value = settings.security_ch || "";
-                document.getElementById('meigen_ch').value = settings.meigen_ch || "";
-                document.getElementById('welcome_enabled').checked = settings.welcome_enabled !== false;
-                document.getElementById('welcome_msg').value = settings.welcome_msg || "";
-                document.getElementById('ng_words').value = settings.ng_words || "";
-                document.getElementById('ng_word_action').value = settings.ng_word_action || "delete_warn";
-                document.getElementById('timeout_duration_sec').value = settings.timeout_duration_sec || 60;
-                document.getElementById('spam_max_msgs').value = settings.spam_max_msgs || 5;
-                document.getElementById('spam_window_sec').value = settings.spam_window_sec || 5;
-                document.getElementById('spam_max_mentions').value = settings.spam_max_mentions || 5;
-                document.getElementById('exp_min').value = settings.exp_min || 10;
-                document.getElementById('exp_max').value = settings.exp_max || 25;
-                document.getElementById('exp_min_len').value = settings.exp_min_len || 5;
-                document.getElementById('exp_cooldown').value = settings.exp_cooldown || 60;
-                document.getElementById('level_design').value = settings.level_design || "embed_card";
-                document.getElementById('vc_exp').value = settings.vc_exp || 5;
-                document.getElementById('vc_exclude_muted').checked = settings.vc_exclude_muted !== false;
-                document.getElementById('meigen_enabled').checked = settings.meigen_enabled !== false;
-                document.getElementById('meigen_star_threshold').value = settings.meigen_star_threshold || 3;
-                document.getElementById('meigen_period_mode').value = settings.meigen_period_mode || "weekly";
-                document.getElementById('meigen_interval_sec').value = settings.meigen_interval_sec || 3600;
-                document.getElementById('meigen_reset_time').value = settings.meigen_reset_time || "00:00";
-            } catch (e) {
-                console.error("初期化エラー:", e);
-            }
+                if(settings.welcome_msg) {
+                    document.getElementById('welcome_msg').value = settings.welcome_msg;
+                }
+                // 他の設定値も必要に応じて適用
+            } catch (e) {}
         }
 
         async function saveSettings() {
@@ -462,12 +566,8 @@
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(payload)
                 });
-                const result = await res.json();
-                if (res.ok && result.status === 'ok') {
-                    alert('✨ 設定を保存しました！');
-                } else {
-                    alert('❌ 保存に失敗しました');
-                }
+                if (res.ok) alert('✨ 設定を保存しました！');
+                else alert('❌ 保存に失敗しました');
             } catch (e) {
                 alert('❌ 通信エラーが発生しました。');
             }
