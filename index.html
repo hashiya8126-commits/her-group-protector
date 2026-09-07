@@ -45,17 +45,23 @@
         .nav-links {
             margin-bottom: 20px;
             text-align: center;
+            display: flex;
+            justify-content: center;
+            gap: 15px;
         }
 
         .nav-links a {
             color: var(--primary);
             text-decoration: none;
             font-weight: bold;
-            margin: 0 10px;
+            background: var(--card-bg);
+            padding: 8px 16px;
+            border-radius: 8px;
+            border: 1px solid var(--border-color);
         }
 
         .nav-links a:hover {
-            text-decoration: underline;
+            background: var(--card-inner);
         }
 
         .card {
@@ -73,9 +79,6 @@
             font-weight: bold;
             border-bottom: 1px solid var(--border-color);
             padding-bottom: 8px;
-            display: flex;
-            align-items: center;
-            gap: 8px;
         }
 
         .grid-2 {
@@ -150,12 +153,10 @@
             font-weight: bold;
             width: 100%;
             font-size: 1.1rem;
-            transition: background 0.2s, transform 0.1s;
+            transition: background 0.2s;
         }
 
-        .btn-save:hover {
-            background: #27ae60;
-        }
+        .btn-save:hover { background: #27ae60; }
 
         .status-badge {
             display: inline-block;
@@ -175,7 +176,8 @@
             <h1>🛡️ HER Group Protector 超詳細管理ダッシュボード</h1>
             <div class="status-badge" id="botStatus">ステータス読込中...</div>
             <div class="nav-links" style="margin-top: 12px;">
-                <a href="/schedule.html">📅 メッセージ予約管理へ移動</a>
+                <a href="/monitor.html">📊 システム・サーバーモニター (CPU/RAM/PING)</a>
+                <a href="/schedule.html">📅 メッセージ予約管理</a>
             </div>
         </div>
 
@@ -326,7 +328,7 @@
                 </div>
             </div>
 
-            <!-- 5. 迷言システム（期間・集計設定を追加） -->
+            <!-- 5. 迷言システム -->
             <div class="card">
                 <div class="card-title">🤪 迷言・名言自動ピックアップ詳細設定</div>
                 <div class="checkbox-group">
@@ -368,8 +370,6 @@
     </div>
 
     <script>
-        let channelsData = [];
-
         async function init() {
             try {
                 const statusRes = await fetch('/api/status');
@@ -378,7 +378,7 @@
 
                 const chRes = await fetch('/api/channels');
                 const chJson = await chRes.json();
-                channelsData = chJson.channels || [];
+                const channelsData = chJson.channels || [];
 
                 document.querySelectorAll('.ch-select').forEach(select => {
                     select.innerHTML = '<option value="">なし (指定なし)</option>';
@@ -400,32 +400,26 @@
                 document.getElementById('audit_ch').value = settings.audit_ch || "";
                 document.getElementById('security_ch').value = settings.security_ch || "";
                 document.getElementById('meigen_ch').value = settings.meigen_ch || "";
-                
                 document.getElementById('welcome_enabled').checked = settings.welcome_enabled !== false;
                 document.getElementById('welcome_msg').value = settings.welcome_msg || "";
-                
                 document.getElementById('ng_words').value = settings.ng_words || "";
                 document.getElementById('ng_word_action').value = settings.ng_word_action || "delete_warn";
                 document.getElementById('timeout_duration_sec').value = settings.timeout_duration_sec || 60;
                 document.getElementById('spam_max_msgs').value = settings.spam_max_msgs || 5;
                 document.getElementById('spam_window_sec').value = settings.spam_window_sec || 5;
                 document.getElementById('spam_max_mentions').value = settings.spam_max_mentions || 5;
-                
                 document.getElementById('exp_min').value = settings.exp_min || 10;
                 document.getElementById('exp_max').value = settings.exp_max || 25;
                 document.getElementById('exp_min_len').value = settings.exp_min_len || 5;
                 document.getElementById('exp_cooldown').value = settings.exp_cooldown || 60;
                 document.getElementById('level_design').value = settings.level_design || "embed_card";
-                
                 document.getElementById('vc_exp').value = settings.vc_exp || 5;
                 document.getElementById('vc_exclude_muted').checked = settings.vc_exclude_muted !== false;
-                
                 document.getElementById('meigen_enabled').checked = settings.meigen_enabled !== false;
                 document.getElementById('meigen_star_threshold').value = settings.meigen_star_threshold || 3;
                 document.getElementById('meigen_period_mode').value = settings.meigen_period_mode || "weekly";
                 document.getElementById('meigen_interval_sec').value = settings.meigen_interval_sec || 3600;
                 document.getElementById('meigen_reset_time').value = settings.meigen_reset_time || "00:00";
-
             } catch (e) {
                 console.error("初期化エラー:", e);
             }
@@ -470,16 +464,14 @@
                 });
                 const result = await res.json();
                 if (res.ok && result.status === 'ok') {
-                    alert('✨ 迷言システムの期間設定を含むすべての設定を保存しました！');
+                    alert('✨ 設定を保存しました！');
                 } else {
-                    alert('❌ 保存に失敗しました: ' + (result.message || '不明なエラー'));
+                    alert('❌ 保存に失敗しました');
                 }
             } catch (e) {
-                console.error("通信エラー:", e);
-                alert('❌ サーバーとの通信に失敗しました。');
+                alert('❌ 通信エラーが発生しました。');
             }
         }
-
         init();
     </script>
 </body>
